@@ -1,0 +1,10 @@
+{
+  "name": "Remix: Kasir CV DPJ Berkah Unggas",
+  "description": "Aplikasi kasir retail penjualan ayam dengan pencatatan utang, ledger, laporan penjualan, dan cetak ulang struk duplikat.",
+  "requestFramePermissions": [
+    "usb"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
