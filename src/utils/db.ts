@@ -629,6 +629,7 @@ export const db = {
       // 7. Seed users
       try {
         await supabase.from("users").insert([
+          { username: "superadmin", password: "superadmin123", role: "superadmin", fullname: "Super Administrator" },
           { username: "admin", password: "admin123", role: "admin", fullname: "Administrator" },
           { username: "kasir", password: "kasir123", role: "kasir", fullname: "Kasir Toko" },
         ]);
@@ -637,6 +638,14 @@ export const db = {
       }
 
       const defaultUsers: AppUser[] = [
+        {
+          id: "user-superadmin",
+          username: "superadmin",
+          password: "superadmin123",
+          role: "superadmin",
+          fullname: "Super Administrator",
+          createdAt: new Date().toISOString(),
+        },
         {
           id: "user-admin",
           username: "admin",
@@ -887,7 +896,7 @@ export const db = {
           id: u.id,
           username: u.username,
           password: u.password,
-          role: u.role as 'admin' | 'kasir',
+          role: u.role as 'superadmin' | 'admin' | 'kasir',
           fullname: u.fullname,
           createdAt: u.created_at,
         }));
@@ -908,6 +917,14 @@ export const db = {
 
     // Default users if empty
     const defaultUsers: AppUser[] = [
+      {
+        id: "user-superadmin",
+        username: "superadmin",
+        password: "superadmin123",
+        role: "superadmin",
+        fullname: "Super Administrator",
+        createdAt: new Date().toISOString(),
+      },
       {
         id: "user-admin",
         username: "admin",

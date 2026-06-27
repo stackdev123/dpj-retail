@@ -75,7 +75,7 @@ export interface AppUser {
   id: string;
   username: string;
   password?: string;
-  role: 'admin' | 'kasir';
+  role: 'superadmin' | 'admin' | 'kasir';
   fullname: string;
   createdAt: string;
 }

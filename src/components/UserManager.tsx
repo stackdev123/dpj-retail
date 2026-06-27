@@ -12,6 +12,7 @@ import {
     UserCheck,
     RefreshCw,
     Search,
+    Crown,
 } from "lucide-react";
 
 interface UserManagerProps {
@@ -29,7 +30,7 @@ export default function UserManager({ currentUser }: UserManagerProps) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [fullname, setFullname] = useState("");
-    const [role, setRole] = useState<"admin" | "kasir">("kasir");
+    const [role, setRole] = useState<"superadmin" | "admin" | "kasir">("kasir");
 
     const loadUsers = async () => {
         setLoading(true);
@@ -147,7 +148,7 @@ export default function UserManager({ currentUser }: UserManagerProps) {
                     >
                         <RefreshCw className="w-3.5 h-3.5" /> Refresh
                     </button>
-                    {currentUser?.role === "admin" ? (
+                    {currentUser?.role === "superadmin" ? (
                         <button
                             id="add-user-btn"
                             onClick={handleOpenCreate}
@@ -157,7 +158,7 @@ export default function UserManager({ currentUser }: UserManagerProps) {
                         </button>
                     ) : (
                         <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded-xl px-3 py-1.5 font-bold">
-                            Hanya Admin yang dapat menambah pengguna
+                            Hanya Superadmin yang dapat menambah pengguna
                         </span>
                     )}
                 </div>
@@ -203,7 +204,9 @@ export default function UserManager({ currentUser }: UserManagerProps) {
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="rounded-xl bg-slate-100 p-2.5 text-slate-700">
-                                            {user.role === "admin" ? (
+                                            {user.role === "superadmin" ? (
+                                                <Crown className="w-5 h-5 text-amber-500" />
+                                            ) : user.role === "admin" ? (
                                                 <Shield className="w-5 h-5 text-red-600" />
                                             ) : (
                                                 <UserCheck className="w-5 h-5 text-blue-600" />
@@ -225,9 +228,11 @@ export default function UserManager({ currentUser }: UserManagerProps) {
                                     </div>
 
                                     <span
-                                        className={`inline-flex rounded-lg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${user.role === "admin"
-                                                ? "bg-red-50 text-red-600 border border-red-200"
-                                                : "bg-blue-50 text-blue-600 border border-blue-200"
+                                        className={`inline-flex rounded-lg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${user.role === "superadmin"
+                                                ? "bg-amber-50 text-amber-600 border border-amber-200"
+                                                : user.role === "admin"
+                                                    ? "bg-red-50 text-red-600 border border-red-200"
+                                                    : "bg-blue-50 text-blue-600 border border-blue-200"
                                             }`}
                                     >
                                         {user.role}
@@ -242,7 +247,7 @@ export default function UserManager({ currentUser }: UserManagerProps) {
                                         </span>
                                     </div>
 
-                                    {currentUser?.role === "admin" && (
+                                    {currentUser?.role === "superadmin" && (
                                         <div className="flex items-center gap-1">
                                             <button
                                                 onClick={() => handleOpenEdit(user)}
@@ -332,11 +337,12 @@ export default function UserManager({ currentUser }: UserManagerProps) {
                                 </label>
                                 <select
                                     value={role}
-                                    onChange={(e) => setRole(e.target.value as "admin" | "kasir")}
+                                    onChange={(e) => setRole(e.target.value as "superadmin" | "admin" | "kasir")}
                                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none"
                                 >
                                     <option value="kasir">Kasir (Transaksi & Laporan)</option>
                                     <option value="admin">Administrator (Akses Penuh)</option>
+                                    <option value="superadmin">Super Administrator (Kelola Pengguna & Bersihkan Log)</option>
                                 </select>
                             </div>
 

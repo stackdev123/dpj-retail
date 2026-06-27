@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ActivityLog } from "../types";
+import { ActivityLog, AppUser } from "../types";
 import { db } from "../utils/db";
 import { formatDate } from "../utils/format";
 import {
@@ -16,7 +16,11 @@ import {
     Info,
 } from "lucide-react";
 
-export default function ActivityLogs() {
+interface ActivityLogsProps {
+    currentUser?: AppUser | null;
+}
+
+export default function ActivityLogs({ currentUser }: ActivityLogsProps) {
     const [logs, setLogs] = useState<ActivityLog[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -139,14 +143,20 @@ export default function ActivityLogs() {
                     >
                         <RefreshCw className="w-3.5 h-3.5" /> Refresh
                     </button>
-                    <button
-                        id="clear-logs-btn"
-                        onClick={() => setConfirmClearOpen(true)}
-                        disabled={logs.length === 0}
-                        className="flex items-center gap-1.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 text-xs font-bold transition disabled:opacity-50 cursor-pointer"
-                    >
-                        <Trash2 className="w-3.5 h-3.5" /> Bersihkan Log
-                    </button>
+                    {currentUser?.role === "superadmin" ? (
+                        <button
+                            id="clear-logs-btn"
+                            onClick={() => setConfirmClearOpen(true)}
+                            disabled={logs.length === 0}
+                            className="flex items-center gap-1.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" /> Bersihkan Log
+                        </button>
+                    ) : (
+                        <span className="text-[10px] bg-slate-100 text-slate-500 border border-slate-200 rounded-xl px-3 py-2 font-bold select-none">
+                            Khusus Superadmin
+                        </span>
+                    )}
                 </div>
             </div>
 

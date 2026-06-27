@@ -9,7 +9,7 @@ import UserManager from './components/UserManager';
 import Login from './components/Login';
 import { AppUser } from './types';
 import { db } from './utils/db';
-import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw } from 'lucide-react';
+import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw, Crown } from 'lucide-react';
 
 type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'database' | 'activity_logs' | 'users_management';
 
@@ -60,6 +60,13 @@ export default function App() {
     { id: 'users_management', label: 'Kelola Pengguna', icon: Users },
   ] as const;
 
+  const visibleNavItems = navItems.filter(item => {
+    if (item.id === 'users_management') {
+      return currentUser?.role === 'superadmin';
+    }
+    return true;
+  });
+
   const renderActiveComponent = () => {
     switch (activeMenu) {
       case 'dashboard':
@@ -73,9 +80,13 @@ export default function App() {
       case 'database':
         return <DatabaseManager />;
       case 'activity_logs':
-        return <ActivityLogs />;
+        return <ActivityLogs currentUser={currentUser} />;
       case 'users_management':
-        return <UserManager currentUser={currentUser} />;
+        return currentUser?.role === 'superadmin' ? (
+          <UserManager currentUser={currentUser} />
+        ) : (
+          <Dashboard />
+        );
       default:
         return <Dashboard />;
     }
@@ -124,7 +135,7 @@ export default function App() {
 
         {/* Navigation items */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeMenu === item.id;
             return (
@@ -152,7 +163,13 @@ export default function App() {
         <div className="p-4 border-t border-slate-800/60 bg-slate-950/40 space-y-3">
           <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} p-1.5 rounded-xl bg-slate-900/60 border border-slate-800/30`}>
             <div className="rounded-lg bg-red-600/10 p-1.5 flex items-center justify-center shrink-0 text-red-500 w-8 h-8">
-              {currentUser?.role === 'admin' ? <Shield className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+              {currentUser?.role === 'superadmin' ? (
+                <Crown className="w-4 h-4 text-amber-500" />
+              ) : currentUser?.role === 'admin' ? (
+                <Shield className="w-4 h-4" />
+              ) : (
+                <UserCheck className="w-4 h-4" />
+              )}
             </div>
             {!isSidebarCollapsed && (
               <div className="min-w-0 flex-1">
@@ -215,7 +232,13 @@ export default function App() {
           <nav className="p-6 space-y-2">
             <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800/40 mb-4 flex items-center gap-3">
               <div className="rounded-lg bg-red-600/10 p-2 flex items-center justify-center text-red-500">
-                {currentUser?.role === 'admin' ? <Shield className="w-4.5 h-4.5" /> : <UserCheck className="w-4.5 h-4.5" />}
+                {currentUser?.role === 'superadmin' ? (
+                  <Crown className="w-4.5 h-4.5 text-amber-500" />
+                ) : currentUser?.role === 'admin' ? (
+                  <Shield className="w-4.5 h-4.5" />
+                ) : (
+                  <UserCheck className="w-4.5 h-4.5" />
+                )}
               </div>
               <div>
                 <p className="text-xs font-black text-slate-200 leading-tight">{currentUser?.fullname}</p>
@@ -223,7 +246,7 @@ export default function App() {
               </div>
             </div>
 
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeMenu === item.id;
               return (
