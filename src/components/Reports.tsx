@@ -340,53 +340,60 @@ export default function Reports() {
 
       {/* 1. AGGREGATE SUMMARY CARDS (Visible for both tabs) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-            Total Omset Penjualan
-          </span>
-          <div className="flex items-baseline gap-1 mt-1">
-            <h3 className="text-xl font-black text-slate-950 font-mono">
-              {formatRupiah(totalSalesVal)}
-            </h3>
+        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              Total Omset Penjualan
+            </span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <h3 className="text-xl font-black text-slate-950 font-mono">
+                {formatRupiah(totalSalesVal)}
+              </h3>
+            </div>
           </div>
-          <div className="text-[10px] text-emerald-600 mt-1.5 flex items-center gap-1 font-bold">
-            <TrendingUp className="w-3.5 h-3.5" /> Total nilai seluruh transaksi
+          <div className="text-[10px] text-emerald-600 mt-2 flex items-center gap-1 font-bold">
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" /> Total nilai seluruh transaksi
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-            Kas Diterima (Real Terbayar)
-          </span>
-          <h3 className="text-xl font-black text-emerald-600 mt-1 font-mono">
-            {formatRupiah(totalPaidVal)}
-          </h3>
-          <p className="text-[10px] text-slate-500 font-semibold mt-1.5">
+        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              Kas Diterima (Real Terbayar)
+            </span>
+            <h3 className="text-xl font-black text-emerald-600 mt-1 font-mono">
+              {formatRupiah(totalPaidVal)}
+            </h3>
+          </div>
+          <p className="text-[10px] text-slate-500 font-semibold mt-2">
             Dana masuk cash & transfer
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-            Piutang Mengambang
-          </span>
-          <h3 className="text-xl font-black text-red-600 mt-1 font-mono">
-            {formatRupiah(totalDebtVal)}
-          </h3>
-          <p className="text-[10px] text-red-500 mt-1.5 flex items-center gap-1 font-bold">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Sisa tagihan
-            utang tempo
+        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              Piutang Mengambang
+            </span>
+            <h3 className="text-xl font-black text-red-600 mt-1 font-mono">
+              {formatRupiah(totalDebtVal)}
+            </h3>
+          </div>
+          <p className="text-[10px] text-red-500 mt-2 flex items-center gap-1 font-bold">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Sisa tagihan utang tempo
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-            Volume Transaksi
-          </span>
-          <h3 className="text-xl font-black text-slate-950 mt-1 font-mono">
-            {salesCount} Nota
-          </h3>
-          <p className="text-[10px] text-slate-500 font-semibold mt-1.5">
+        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              Volume Transaksi
+            </span>
+            <h3 className="text-xl font-black text-slate-950 mt-1 font-mono">
+              {salesCount} Nota
+            </h3>
+          </div>
+          <p className="text-[10px] text-slate-500 font-semibold mt-2">
             Penjualan berhasil tercatat
           </p>
         </div>
@@ -412,7 +419,7 @@ export default function Reports() {
               }
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-4 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
+              className="w-[144.74px] rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-4 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
             />
           </div>
 
