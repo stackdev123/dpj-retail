@@ -1,18 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Cashier from './components/Cashier';
 import DebtLedger from './components/DebtLedger';
 import Reports from './components/Reports';
 import DatabaseManager from './components/DatabaseManager';
+import ActivityLogs from './components/ActivityLogs';
+import UserManager from './components/UserManager';
+import Login from './components/Login';
+import { AppUser } from './types';
 import { db } from './utils/db';
-import { Store, BookOpen, BarChart3, Database, Trash2, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard } from 'lucide-react';
+import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw } from 'lucide-react';
 
-type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'database';
+type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'database' | 'activity_logs' | 'users_management';
 
 export default function App() {
   const [activeMenu, setActiveMenu] = useState<MenuItem>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  // Check login session on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('dpj_current_user');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (e) {
+        localStorage.removeItem('dpj_current_user');
+      }
+    }
+    setSessionLoading(false);
+  }, []);
+
+  const handleLoginSuccess = (user: AppUser) => {
+    setCurrentUser(user);
+    localStorage.setItem('dpj_current_user', JSON.stringify(user));
+  };
+
+  const handleLogout = async () => {
+    if (currentUser) {
+      await db.addActivityLog(
+        'LOGIN',
+        'Sistem',
+        `Pengguna ${currentUser.fullname} (${currentUser.role.toUpperCase()}) telah keluar dari sistem`
+      );
+    }
+    setCurrentUser(null);
+    localStorage.removeItem('dpj_current_user');
+  };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -20,6 +56,8 @@ export default function App() {
     { id: 'ledger', label: 'Buku Utang / Ledger', icon: BookOpen },
     { id: 'reports', label: 'Laporan Penjualan', icon: BarChart3 },
     { id: 'database', label: 'Database Master', icon: Database },
+    { id: 'activity_logs', label: 'Log Aktivitas', icon: History },
+    { id: 'users_management', label: 'Kelola Pengguna', icon: Users },
   ] as const;
 
   const renderActiveComponent = () => {
@@ -34,17 +72,34 @@ export default function App() {
         return <Reports />;
       case 'database':
         return <DatabaseManager />;
+      case 'activity_logs':
+        return <ActivityLogs />;
+      case 'users_management':
+        return <UserManager currentUser={currentUser} />;
       default:
         return <Dashboard />;
     }
   };
 
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen w-full bg-[#070b13] flex flex-col items-center justify-center p-4">
+        <RefreshCw className="w-8 h-8 text-red-500 animate-spin mb-3" />
+        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Memulai Sesi...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-tr from-slate-100/80 via-slate-50/60 to-zinc-100/80 flex flex-col md:flex-row text-slate-800 font-sans antialiased pb-16 md:pb-0">
-      
+
       {/* 1. DESKTOP STICKY LEFT SIDEBAR */}
       <aside className={`hidden md:flex md:flex-col bg-[#0b0f19] text-white shrink-0 shadow-xl border-r border-slate-800/40 sticky top-0 h-screen transition-all duration-300 relative ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
-        
+
         {/* Toggle Button */}
         <button
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -77,11 +132,10 @@ export default function App() {
                 key={item.id}
                 id={`sidebar-${item.id}-btn`}
                 onClick={() => setActiveMenu(item.id)}
-                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3.5 px-4'} py-3 rounded-xl text-xs font-bold tracking-wide transition-all duration-200 relative group ${
-                  isActive
+                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3.5 px-4'} py-3 rounded-xl text-xs font-bold tracking-wide transition-all duration-200 relative group ${isActive
                     ? 'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg shadow-red-600/15'
                     : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
-                }`}
+                  }`}
                 title={isSidebarCollapsed ? item.label : undefined}
               >
                 <Icon className={`w-4 h-4 transition-transform duration-200 group-hover:scale-110 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
@@ -94,13 +148,28 @@ export default function App() {
           })}
         </nav>
 
-        {/* Sidebar Footer with system controls */}
-        <div className="p-4 border-t border-slate-800/60 bg-slate-950/20">
-          {!isSidebarCollapsed && (
-            <div className="text-[9px] text-slate-500 text-center font-semibold tracking-wide whitespace-nowrap">
-              Sistem Kasir v1.0 • CV DPJ Berkah
+        {/* Sidebar Footer with user session and controls */}
+        <div className="p-4 border-t border-slate-800/60 bg-slate-950/40 space-y-3">
+          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} p-1.5 rounded-xl bg-slate-900/60 border border-slate-800/30`}>
+            <div className="rounded-lg bg-red-600/10 p-1.5 flex items-center justify-center shrink-0 text-red-500 w-8 h-8">
+              {currentUser?.role === 'admin' ? <Shield className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
             </div>
-          )}
+            {!isSidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-black text-slate-200 truncate leading-tight">{currentUser?.fullname}</p>
+                <p className="text-[9px] text-red-500 font-bold uppercase tracking-wider mt-0.5">{currentUser?.role.toUpperCase()}</p>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-4'} py-2.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition cursor-pointer`}
+            title={isSidebarCollapsed ? "Keluar Sistem" : undefined}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!isSidebarCollapsed && "Keluar"}
+          </button>
         </div>
       </aside>
 
@@ -118,6 +187,19 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="hidden sm:flex flex-col items-end text-right mr-2">
+            <span className="text-[10px] font-bold text-slate-300 leading-none">{currentUser?.fullname}</span>
+            <span className="text-[8px] text-red-500 font-extrabold uppercase mt-0.5">{currentUser?.role.toUpperCase()}</span>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="rounded-xl p-2 text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+            title="Keluar"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="rounded-xl p-2 text-slate-400 hover:bg-slate-800/50 hover:text-white transition focus:outline-none"
@@ -129,8 +211,18 @@ export default function App() {
 
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-[56px] z-30 bg-[#0b0f19]/95 text-white animate-in slide-in-from-top duration-200 backdrop-blur-md">
+        <div className="md:hidden fixed inset-0 top-[56px] z-30 bg-[#0b0f19]/95 text-white animate-in slide-in-from-top duration-200 backdrop-blur-md flex flex-col justify-between">
           <nav className="p-6 space-y-2">
+            <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800/40 mb-4 flex items-center gap-3">
+              <div className="rounded-lg bg-red-600/10 p-2 flex items-center justify-center text-red-500">
+                {currentUser?.role === 'admin' ? <Shield className="w-4.5 h-4.5" /> : <UserCheck className="w-4.5 h-4.5" />}
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-200 leading-tight">{currentUser?.fullname}</p>
+                <p className="text-[9px] text-red-500 font-bold uppercase tracking-wider mt-0.5">{currentUser?.role.toUpperCase()}</p>
+              </div>
+            </div>
+
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeMenu === item.id;
@@ -141,19 +233,26 @@ export default function App() {
                     setActiveMenu(item.id);
                     setMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold transition ${
-                    isActive 
-                      ? 'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg shadow-red-600/10' 
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-xs font-bold transition ${isActive
+                      ? 'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg shadow-red-600/10'
                       : 'text-slate-400 hover:bg-slate-800/50'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-4 h-4" />
                   {item.label}
                 </button>
               );
             })}
-            {/* No reset db button */}
           </nav>
+
+          <div className="p-6 border-t border-slate-800/50 bg-slate-950/20">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-red-500/10 text-red-400 font-bold text-xs hover:bg-red-500/20 transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" /> Keluar dari Sistem
+            </button>
+          </div>
         </div>
       )}
 
@@ -176,9 +275,8 @@ export default function App() {
                 setActiveMenu(item.id);
                 setMobileMenuOpen(false);
               }}
-              className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-all duration-200 ${
-                isActive ? 'text-red-500 font-bold scale-105 bg-red-500/10' : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-all duration-200 ${isActive ? 'text-red-500 font-bold scale-105 bg-red-500/10' : 'text-slate-400 hover:text-slate-200'
+                }`}
             >
               <Icon className="w-4.5 h-4.5" />
               <span className="text-[8px] mt-1 font-bold uppercase tracking-wider">{item.label.split(' ')[0]}</span>

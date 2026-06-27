@@ -3,6 +3,7 @@ import { Transaction, Customer, CustomerDebtSummary } from "../types";
 import { db } from "../utils/db";
 import { formatRupiah, formatDate, downloadCSV } from "../utils/format";
 import ReceiptModal from "./ReceiptModal";
+import EditTransactionModal from "./EditTransactionModal";
 import {
   BarChart3,
   Search,
@@ -15,6 +16,8 @@ import {
   Users,
   TrendingUp,
   AlertTriangle,
+  Edit,
+  Trash2,
 } from "lucide-react";
 
 export default function Reports() {
@@ -33,13 +36,25 @@ export default function Reports() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // Selected transaction to reprint
+  // Selected transaction to reprint or edit or delete
   const [reprintTx, setReprintTx] = useState<Transaction | null>(null);
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [confirmDeleteTx, setConfirmDeleteTx] = useState<Transaction | null>(null);
 
   const loadData = async () => {
     setTransactions(await db.getTransactions());
     setCustomers(await db.getCustomers());
     setDebtSummaries(await db.getCustomerDebtSummaries());
+  };
+
+  const handleDeleteTx = async (txId: string) => {
+    try {
+      await db.deleteTransaction(txId);
+      loadData();
+      setConfirmDeleteTx(null);
+    } catch (e) {
+      alert("Gagal menghapus transaksi.");
+    }
   };
 
   useEffect(() => {
@@ -287,11 +302,10 @@ export default function Reports() {
               setReportTab("all");
               setFilterQuery("");
             }}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${
-              reportTab === "all"
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "all"
                 ? "bg-red-600 text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <Layers className="w-3.5 h-3.5" /> Riwayat Transaksi All / Detail
           </button>
@@ -301,11 +315,10 @@ export default function Reports() {
               setReportTab("customer");
               setFilterQuery("");
             }}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${
-              reportTab === "customer"
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "customer"
                 ? "bg-red-600 text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <Users className="w-3.5 h-3.5" /> Laporan per Pelanggan
           </button>
@@ -315,11 +328,10 @@ export default function Reports() {
               setReportTab("daily_items");
               setFilterQuery("");
             }}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${
-              reportTab === "daily_items"
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "daily_items"
                 ? "bg-red-600 text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <BarChart3 className="w-3.5 h-3.5" /> Laporan Item Harian
           </button>
@@ -539,13 +551,12 @@ export default function Reports() {
                       </td>
                       <td className="py-3.5 px-5 text-center">
                         <span
-                          className={`inline-flex rounded-lg px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide border ${
-                            tx.paymentMethod === "cash"
+                          className={`inline-flex rounded-lg px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide border ${tx.paymentMethod === "cash"
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                               : tx.paymentMethod === "transfer"
                                 ? "bg-blue-50 text-blue-700 border-blue-200"
                                 : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}
+                            }`}
                         >
                           {tx.paymentMethod === "debt"
                             ? "Utang"
@@ -562,11 +573,10 @@ export default function Reports() {
                       </td>
                       <td className="py-3.5 px-5 text-center">
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            tx.printCount >= 1
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${tx.printCount >= 1
                               ? "bg-red-50 text-red-700 font-black"
                               : "bg-slate-100 text-slate-500"
-                          }`}
+                            }`}
                           title={
                             tx.printCount >= 1
                               ? `Sudah dicetak ${tx.printCount} kali`
@@ -576,14 +586,33 @@ export default function Reports() {
                           {tx.printCount}x {tx.printCount >= 1 && "📋"}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-right">
-                        <button
-                          id={`reprint-receipt-btn-${tx.id}`}
-                          onClick={() => setReprintTx(tx)}
-                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[10px] py-1.5 px-3 shadow-sm transition cursor-pointer"
-                        >
-                          Cetak Ulang
-                        </button>
+                      <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            id={`reprint-receipt-btn-${tx.id}`}
+                            onClick={() => setReprintTx(tx)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[10px] py-1 px-2.5 shadow-sm transition cursor-pointer"
+                            title="Cetak Ulang Struk"
+                          >
+                            Cetak
+                          </button>
+                          <button
+                            id={`edit-tx-btn-${tx.id}`}
+                            onClick={() => setEditTx(tx)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] py-1 px-2.5 shadow-sm transition cursor-pointer"
+                            title="Edit Transaksi"
+                          >
+                            <Edit className="w-3 h-3" /> Edit
+                          </button>
+                          <button
+                            id={`delete-tx-btn-${tx.id}`}
+                            onClick={() => setConfirmDeleteTx(tx)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-[10px] py-1 px-2.5 shadow-sm transition cursor-pointer"
+                            title="Hapus Transaksi"
+                          >
+                            <Trash2 className="w-3 h-3" /> Hapus
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -658,61 +687,61 @@ export default function Reports() {
             </div>
           )
         ) : /* TAB 3: DAILY ITEMS REPORT */
-        dailyItemSales.length === 0 ? (
-          <div className="p-16 text-center text-slate-400 text-xs font-semibold">
-            Tidak ada data penjualan item pada rentang waktu ini.
-          </div>
-        ) : (
-          <div className="overflow-x-auto p-4 space-y-6">
-            {dailyItemSales.map((day) => (
-              <div
-                key={day.date}
-                className="border border-slate-200 rounded-xl overflow-hidden"
-              >
-                <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 font-bold text-slate-800 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-red-600" />
-                  {formatDate(day.date, false)}
-                </div>
-                <table className="w-full text-left border-collapse text-xs bg-white">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-slate-400">
-                      <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px]">
-                        Nama Item
-                      </th>
-                      <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
-                        Jumlah Terjual
-                      </th>
-                      <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
-                        Total Nilai
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {day.items.map((item, idx) => (
-                      <tr
-                        key={`${day.date}-${idx}`}
-                        className="hover:bg-slate-50/50 transition-all"
-                      >
-                        <td className="py-2.5 px-5 font-semibold text-slate-800">
-                          {item.name}
-                        </td>
-                        <td className="py-2.5 px-5 text-right font-bold text-slate-900 font-mono">
-                          {item.quantity}{" "}
-                          <span className="text-slate-500 font-medium text-[10px]">
-                            {item.unit}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-5 text-right font-bold text-emerald-600 font-mono">
-                          {formatRupiah(item.totalAmount)}
-                        </td>
+          dailyItemSales.length === 0 ? (
+            <div className="p-16 text-center text-slate-400 text-xs font-semibold">
+              Tidak ada data penjualan item pada rentang waktu ini.
+            </div>
+          ) : (
+            <div className="overflow-x-auto p-4 space-y-6">
+              {dailyItemSales.map((day) => (
+                <div
+                  key={day.date}
+                  className="border border-slate-200 rounded-xl overflow-hidden"
+                >
+                  <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 font-bold text-slate-800 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-red-600" />
+                    {formatDate(day.date, false)}
+                  </div>
+                  <table className="w-full text-left border-collapse text-xs bg-white">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-slate-400">
+                        <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px]">
+                          Nama Item
+                        </th>
+                        <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
+                          Jumlah Terjual
+                        </th>
+                        <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
+                          Total Nilai
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
-        )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {day.items.map((item, idx) => (
+                        <tr
+                          key={`${day.date}-${idx}`}
+                          className="hover:bg-slate-50/50 transition-all"
+                        >
+                          <td className="py-2.5 px-5 font-semibold text-slate-800">
+                            {item.name}
+                          </td>
+                          <td className="py-2.5 px-5 text-right font-bold text-slate-900 font-mono">
+                            {item.quantity}{" "}
+                            <span className="text-slate-500 font-medium text-[10px]">
+                              {item.unit}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-5 text-right font-bold text-emerald-600 font-mono">
+                            {formatRupiah(item.totalAmount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
       </div>
 
       {/* ACTIVE REPRINT MODAL POPUP */}
@@ -722,6 +751,49 @@ export default function Reports() {
           onClose={() => setReprintTx(null)}
           onPrintSuccess={loadData} // Trigger reloading data to update printCount indicators instantly
         />
+      )}
+
+      {/* EDIT TRANSACTION MODAL */}
+      {editTx && (
+        <EditTransactionModal
+          transaction={editTx}
+          onClose={() => setEditTx(null)}
+          onSaveSuccess={() => {
+            setEditTx(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* CONFIRM DELETE MODAL */}
+      {confirmDeleteTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border-t-4 border-red-500 animate-in zoom-in-95 duration-150">
+            <h4 className="font-black text-slate-900 text-sm mb-2 tracking-tight uppercase">
+              Hapus Transaksi Penjualan?
+            </h4>
+            <p className="text-xs text-slate-500 mb-4 font-medium leading-relaxed">
+              Apakah Anda yakin ingin menghapus transaksi <span className="font-bold text-slate-800 font-mono">{confirmDeleteTx.invoiceNumber}</span> ({confirmDeleteTx.customerName}) senilai <span className="font-bold text-slate-800 font-mono">{formatRupiah(confirmDeleteTx.totalAmount)}</span>?
+              <br />
+              <span className="text-red-500 font-bold mt-1 block">Tindakan ini permanen dan akan menghapus semua sisa piutang atau cicilan terkait.</span>
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDeleteTx(null)}
+                className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                id="confirm-delete-tx-btn"
+                onClick={() => handleDeleteTx(confirmDeleteTx.id)}
+                className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition cursor-pointer"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

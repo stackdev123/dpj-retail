@@ -188,6 +188,9 @@ export function compileEscPosReceipt(
 
     pushText("Pusat Grosir & Retail Ayam Segar\n");
     pushText("Halal, Higienis & Berkualitas\n");
+    pushText("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan\n");
+    pushText("Kec. Bojong Kab. Purwakarta\n");
+    pushText("Telp/Hp. +62 877-6908-0999\n");
     pushText("------------------------------------------------\n"); // 48 chars
 
     // 5. Metadata (Left Aligned)
@@ -252,6 +255,18 @@ export function compileEscPosReceipt(
         printTotalRow("TOTAL SEMUA UTANG:", formatRupiah(totalCustomerDebt), true);
     }
 
+    pushText("================================================\n");
+
+    // Info Rekening Pembayaran
+    pushCmd([ESC, 0x61, 0x01]); // Align Center
+    pushCmd([ESC, 0x45, 0x01]); // Bold ON
+    pushText("INFO REKENING PEMBAYARAN\n");
+    pushCmd([ESC, 0x45, 0x00]); // Bold OFF
+    pushText("(A/N Panji Paranantias Mulyono)\n");
+    pushCmd([ESC, 0x61, 0x00]); // Align Left
+    printTotalRow("BCA:", "7410888879");
+    printTotalRow("BRI:", "007501001986565");
+    printTotalRow("MANDIRI:", "173008118881");
     pushText("================================================\n");
 
     // 8. Footer (Center Aligned)

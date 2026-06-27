@@ -231,18 +231,19 @@ export default function ReceiptModal({
   const handleDownload = () => {
     const isDuplicate = currentPrintCount >= 1;
     let txt = "";
-    txt += `==========================================\n`;
-    txt += `          CV DPJ BERKAH UNGGAS\n`;
-    txt += `     Pusat Grosir & Retail Ayam Segar\n`;
-    txt += `==========================================\n`;
+    txt += `================================================\n`;
+    txt += `              CV DPJ BERKAH UNGGAS\n`;
+    txt += `  Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan\n`;
+    txt += `           Kec. Bojong Kab. Purwakarta\n`;
+    txt += `           Telp/Hp. +62 877-6908-0999\n`;
+    txt += `================================================\n`;
     if (isDuplicate) {
-      txt += `*** DUPLIKAT (SUDAH PERNAH DICETAK) ***\n`;
-      txt += `==========================================\n`;
+      txt += `*** DUPLIKAT ***\n`;
     }
     txt += `No. Nota  : ${transaction.invoiceNumber}\n`;
     txt += `Tanggal   : ${formatDate(transaction.date)}\n`;
     txt += `Pelanggan : ${transaction.customerName}\n`;
-    txt += `==========================================\n`;
+    txt += `================================================\n`;
 
     transaction.items.forEach((item, index) => {
       const line1 = `${index + 1}. ${item.name}`;
@@ -250,30 +251,36 @@ export default function ReceiptModal({
       const subTotalStr = formatRupiah(item.subtotal);
 
       txt += `${line1}\n`;
-      txt += `   ${qtyStr.padEnd(25)} ${subTotalStr.padStart(12)}\n`;
+      txt += `   ${qtyStr.padEnd(30)} ${subTotalStr.padStart(12)}\n`;
     });
 
-    txt += `------------------------------------------\n`;
-    txt += `TOTAL     : ${formatRupiah(transaction.totalAmount).padStart(28)}\n`;
-    txt += `METODE    : ${transaction.paymentMethod.toUpperCase().padStart(28)}\n`;
-    txt += `BAYAR     : ${formatRupiah(transaction.amountPaid).padStart(28)}\n`;
+    txt += `------------------------------------------------\n`;
+    txt += `TOTAL     : ${formatRupiah(transaction.totalAmount).padStart(34)}\n`;
+    txt += `METODE    : ${transaction.paymentMethod.toUpperCase().padStart(34)}\n`;
+    txt += `BAYAR     : ${formatRupiah(transaction.amountPaid).padStart(34)}\n`;
 
     const previousDebt =
       totalCustomerDebt -
       (transaction.paymentMethod === "debt" ? transaction.remainingDebt : 0);
 
     if (previousDebt > 0) {
-      txt += `UTANG SBLMNYA:${formatRupiah(previousDebt).padStart(28)}\n`;
+      txt += `UTANG SBLMNYA:${formatRupiah(previousDebt).padStart(31)}\n`;
     }
 
     if (totalCustomerDebt > 0) {
-      txt += `TOTAL UTANG:${formatRupiah(totalCustomerDebt).padStart(28)}\n`;
+      txt += `TOTAL UTANG:${formatRupiah(totalCustomerDebt).padStart(33)}\n`;
     }
 
-    txt += `==========================================\n`;
-    txt += `    Terima Kasih Atas Kunjungan Anda\n`;
-    txt += `      Ayam Segar, Halal & Higienis\n`;
-    txt += `==========================================\n`;
+    txt += `================================================\n`;
+    txt += `            INFO REKENING PEMBAYARAN\n`;
+    txt += `         (A/N Panji Paranantias Mulyono)\n`;
+    txt += `  BCA: 7410888879\n`;
+    txt += `  BRI: 007501001986565\n`;
+    txt += `  MANDIRI: 173008118881\n`;
+    txt += `================================================\n`;
+    txt += `        Terima Kasih Atas Kunjungan Anda\n`;
+    txt += `          Ayam Segar, Halal & Higienis\n`;
+    txt += `================================================\n`;
 
     downloadFile(txt, `Struk_${transaction.invoiceNumber}.txt`, "text/plain");
   };
@@ -293,32 +300,33 @@ export default function ReceiptModal({
 
     // Header logo / title
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setTextColor(0, 0, 0); // black
-    doc.text("CV DPJ BERKAH UNGGAS", 10, 16);
+    doc.text("CV DPJ BERKAH UNGGAS", 10, 15);
 
     doc.setFont("Helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(0, 0, 0);
-    doc.text("Pusat Grosir & Retail Ayam Segar", 10, 21);
-    doc.text("Halal, Higienis & Berkualitas", 10, 25);
+    doc.setFontSize(6.5);
+    doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan Kecamatan Bojong Kabupaten Purwakarta", 10, 23.5);
+    doc.text("Telp/Hp. +62 877-6908-0999", 10, 27);
 
     // Receipt Label
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
-    doc.text("NOTA PENJUALAN", 100, 16);
+    doc.text("NOTA PENJUALAN", 100, 15);
 
     // Metadata separator
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.3);
-    doc.line(10, 28, 138, 28);
+    doc.line(10, 30, 138, 30);
 
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
-    doc.text(`No. Nota  : ${transaction.invoiceNumber}`, 10, 34);
-    doc.text(`Tanggal   : ${formatDate(transaction.date)}`, 10, 39);
+    doc.text(`No. Nota  : ${transaction.invoiceNumber}`, 10, 36);
+    doc.text(`Tanggal   : ${formatDate(transaction.date)}`, 10, 41);
 
     // Safety Truncate for Customer Name to avoid overlap with Stamp box
     let customerNameDisplay = transaction.customerName;
@@ -327,39 +335,39 @@ export default function ReceiptModal({
     } else if (customerNameDisplay.length > 40) {
       customerNameDisplay = customerNameDisplay.substring(0, 37) + "...";
     }
-    doc.text(`Pelanggan : ${customerNameDisplay}`, 10, 44);
+    doc.text(`Pelanggan : ${customerNameDisplay}`, 10, 46);
 
     if (isDuplicate) {
       doc.setFillColor(255, 255, 255);
-      doc.rect(82, 31, 56, 13, "F");
+      doc.rect(82, 33, 56, 13, "F");
       doc.setDrawColor(0, 0, 0);
-      doc.rect(82, 31, 56, 13, "D");
+      doc.rect(82, 33, 56, 13, "D");
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(0, 0, 0);
-      doc.text("*** DUPLIKAT ***", 96, 36);
+      doc.text("*** DUPLIKAT ***", 96, 38);
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(7);
-      doc.text("Sudah Pernah Dicetak", 93, 40);
+      doc.text("Sudah Pernah Dicetak", 93, 42);
     }
 
     // Table Header (using neat lines instead of heavy solid black background block to save ink)
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.3);
-    doc.line(10, 49, 138, 49);
-    doc.line(10, 55, 138, 55);
+    doc.line(10, 51, 138, 51);
+    doc.line(10, 57, 138, 57);
 
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
-    doc.text("Nama Item", 12, 53);
-    doc.text("Qty x Harga", 62, 53);
-    doc.text("Subtotal", 136, 53, { align: "right" });
+    doc.text("Nama Item", 12, 55);
+    doc.text("Qty x Harga", 62, 55);
+    doc.text("Subtotal", 136, 55, { align: "right" });
 
     // Table content
     doc.setTextColor(0, 0, 0);
     doc.setFont("Helvetica", "normal");
-    let y = 59;
+    let y = 61;
     const pageBottomLimit = 180; // A5 height is 210mm, so 180mm is a safe limit
 
     transaction.items.forEach((item, index) => {
@@ -568,11 +576,11 @@ export default function ReceiptModal({
               <h4 className="text-sm font-black text-slate-950 tracking-tight uppercase">
                 CV DPJ Berkah Unggas
               </h4>
-              <p className="text-[10px] text-slate-500 font-bold mt-1">
-                Pusat Grosir & Retail Ayam Segar
-              </p>
-              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                Halal, Higienis & Berkualitas
+              <p className="text-[8px] text-slate-400 font-semibold mt-1 leading-normal max-w-[280px] mx-auto normal-case font-sans">
+                Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan
+                <br /> Kec. Bojong Kab. Purwakarta
+                <br />
+                Telp/Hp. +62 877-6908-0999
               </p>
               <div className="border-t border-dashed border-slate-300 my-3"></div>
             </div>
@@ -680,6 +688,24 @@ export default function ReceiptModal({
                   </>
                 );
               })()}
+            </div>
+
+            {/* Bank accounts section */}
+            <div className="border-t border-dashed border-slate-300 my-3 pt-3 text-[9px] text-slate-600 font-bold space-y-1">
+              <div className="text-center uppercase text-[8px] text-slate-400 tracking-wider font-bold">Info Rekening Pembayaran</div>
+              <div className="text-center text-[8px] text-slate-500 font-medium normal-case font-sans">(A/N Panji Paranantias Mulyono)</div>
+              <div className="flex justify-between px-2 font-mono">
+                <span>BCA:</span>
+                <span className="text-slate-950 font-black">7410888879</span>
+              </div>
+              <div className="flex justify-between px-2 font-mono">
+                <span>BRI:</span>
+                <span className="text-slate-950 font-black">007501001986565</span>
+              </div>
+              <div className="flex justify-between px-2 font-mono">
+                <span>MANDIRI:</span>
+                <span className="text-slate-950 font-black">173008118881</span>
+              </div>
             </div>
 
             <div className="border-t border-dashed border-slate-300 my-4"></div>

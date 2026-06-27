@@ -354,39 +354,43 @@ export default function DebtLedger() {
 
       // Brand Header
       doc.setFont("Helvetica", "bold");
-      doc.setFontSize(16);
+      doc.setFontSize(13);
       doc.setTextColor(15, 23, 42); // slate-900
-      doc.text("CV DPJ BERKAH UNGGAS", 34, 15);
+      doc.text("CV DPJ BERKAH UNGGAS", 34, 13);
 
       doc.setFont("Helvetica", "normal");
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setTextColor(100, 116, 139); // slate-500
-      doc.text("Pusat Grosir & Retail Ayam Segar", 34, 20);
-      doc.text("Halal, Higienis & Berkualitas", 34, 24);
+      doc.text("Pusat Grosir & Retail Ayam Segar  •  Halal, Higienis & Berkualitas", 34, 17.5);
+      doc.setFontSize(7);
+      doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan Kecamatan Bojong Kabupaten Purwakarta", 34, 21.5);
+      doc.text("Telp/Hp. +62 877-6908-0999", 34, 25.5);
     } catch (e) {
       // Fallback
       doc.setFont("Helvetica", "bold");
-      doc.setFontSize(16);
+      doc.setFontSize(13);
       doc.setTextColor(15, 23, 42); // slate-900
-      doc.text("CV DPJ BERKAH UNGGAS", 14, 15);
+      doc.text("CV DPJ BERKAH UNGGAS", 14, 13);
 
       doc.setFont("Helvetica", "normal");
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setTextColor(100, 116, 139); // slate-500
-      doc.text("Pusat Grosir & Retail Ayam Segar", 14, 20);
-      doc.text("Halal, Higienis & Berkualitas", 14, 24);
+      doc.text("Pusat Grosir & Retail Ayam Segar  •  Halal, Higienis & Berkualitas", 14, 17.5);
+      doc.setFontSize(7);
+      doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan Kecamatan Bojong Kabupaten Purwakarta", 14, 21.5);
+      doc.text("Telp/Hp. +62 877-6908-0999", 14, 25.5);
     }
 
     // Header divider line (red)
     doc.setLineWidth(0.6);
     doc.setDrawColor(220, 38, 38); // red-600
-    doc.line(14, 27, 196, 27);
+    doc.line(14, 29, 196, 29);
 
     // Document Title
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
-    doc.text("LAPORAN BUKU BESAR PIUTANG (LEDGER)", 14, 35);
+    doc.text("LAPORAN BUKU BESAR PIUTANG (LEDGER)", 14, 37);
 
     // Customer Info Left Panel
     doc.setFont("Helvetica", "normal");
@@ -407,34 +411,34 @@ export default function DebtLedger() {
     doc.text(
       `Nama Pelanggan  : ${limitString(selectedCustomer.name, 45)}`,
       14,
-      42,
+      44,
     );
-    doc.text(`No. Telepon     : ${limitString(cleanPhone, 45)}`, 14, 47);
-    doc.text(`Alamat          : ${limitString(cleanAddress, 55)}`, 14, 52);
+    doc.text(`No. Telepon     : ${limitString(cleanPhone, 45)}`, 14, 49);
+    doc.text(`Alamat          : ${limitString(cleanAddress, 55)}`, 14, 54);
     doc.text(
       `Tanggal Unduh   : ${formatDate(new Date().toISOString(), true)}`,
       14,
-      57,
+      59,
     );
 
     // Outstanding Stats Card Right Panel (Clean and simple card displaying only Total Outstanding Debt)
     doc.setFillColor(254, 242, 242); // soft red-50
-    doc.rect(136, 40, 60, 18, "F");
+    doc.rect(136, 42, 60, 19, "F");
     doc.setDrawColor(254, 202, 202); // red-200
     doc.setLineWidth(0.3);
-    doc.rect(136, 40, 60, 18, "D");
+    doc.rect(136, 42, 60, 19, "D");
 
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38); // red-600
-    doc.text("TOTAL SISA PIUTANG TEMPO", 140, 45);
+    doc.text("TOTAL SISA PIUTANG TEMPO", 140, 47);
 
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(13);
-    doc.text(formatRupiah(selectedSummary.remainingDebt), 140, 52);
+    doc.text(formatRupiah(selectedSummary.remainingDebt), 140, 55);
 
     // Table Headers
-    const tableY = 66;
+    const tableY = 69;
     doc.setFillColor(15, 23, 42); // slate-900 header
     doc.rect(14, tableY, 182, 8, "F");
 
@@ -558,6 +562,32 @@ export default function DebtLedger() {
     doc.line(14, y + 7.8, 196, y + 7.8);
 
     y += 13;
+
+    // Check if the Bank info + footer will overflow
+    if (y + 35 > pageBottom) {
+      doc.addPage();
+      y = 15;
+    }
+
+    // Draw Bank Accounts Panel
+    doc.setFillColor(248, 250, 252); // slate-50 background for bank info
+    doc.rect(14, y + 2, 182, 14, "F");
+    doc.setDrawColor(226, 232, 240); // slate-200 border
+    doc.setLineWidth(0.2);
+    doc.rect(14, y + 2, 182, 14, "D");
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("INFO REKENING PEMBAYARAN (A/N PANJI PARANANTIAS MULYONO) :", 18, y + 6);
+
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("BCA: 7410888879", 18, y + 12);
+    doc.text("BRI: 007501001986565", 70, y + 12);
+    doc.text("MANDIRI: 173008118881", 130, y + 12);
+
+    y += 18;
 
     // Check footer page overflow
     if (y + 15 > pageBottom) {
@@ -819,7 +849,7 @@ export default function DebtLedger() {
             {/* Repayment Form Panel (4 cols) */}
             <div
               id="repay-form-container"
-              className="lg:col-span-5 xl:col-span-4"
+              className="lg:col-span-5 xl:col-span-4 space-y-4"
             >
               {isRepaying ? (
                 <div className="bg-white rounded-2xl border border-red-200/60 p-5 shadow-lg space-y-4 animate-in fade-in duration-200 relative overflow-hidden">
@@ -886,11 +916,10 @@ export default function DebtLedger() {
                           id="repay-cash-btn"
                           type="button"
                           onClick={() => setRepayMethod("cash")}
-                          className={`py-2 px-3 rounded-lg border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${
-                            repayMethod === "cash"
+                          className={`py-2 px-3 rounded-lg border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "cash"
                               ? "border-red-500 bg-red-500/5 text-red-600 shadow-sm"
                               : "border-slate-100 bg-slate-50/50 text-slate-600"
-                          }`}
+                            }`}
                         >
                           Cash (Tunai)
                         </button>
@@ -898,11 +927,10 @@ export default function DebtLedger() {
                           id="repay-transfer-btn"
                           type="button"
                           onClick={() => setRepayMethod("transfer")}
-                          className={`py-2 px-3 rounded-lg border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${
-                            repayMethod === "transfer"
+                          className={`py-2 px-3 rounded-lg border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "transfer"
                               ? "border-red-500 bg-red-500/5 text-red-600 shadow-sm"
                               : "border-slate-100 bg-slate-50/50 text-slate-600"
-                          }`}
+                            }`}
                         >
                           Transfer Bank
                         </button>
@@ -951,6 +979,39 @@ export default function DebtLedger() {
                   <p>Silakan pilih nota untuk memulai angsuran.</p>
                 </div>
               )}
+
+              {/* Info Rekening Pembayaran Card */}
+              <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm space-y-3 relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-slate-800"></div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                  <Wallet className="w-4 h-4 text-slate-600" /> Info Rekening Pembayaran
+                </h4>
+                <p className="text-[10px] text-slate-500 font-bold leading-none uppercase">
+                  A/N Panji Paranantias Mulyono
+                </p>
+                <div className="space-y-1.5 text-xs font-semibold">
+                  <div className="flex justify-between bg-slate-50 p-2 rounded-lg border border-slate-150">
+                    <span className="text-slate-500">BCA</span>
+                    <span className="font-mono font-black text-slate-900">7410888879</span>
+                  </div>
+                  <div className="flex justify-between bg-slate-50 p-2 rounded-lg border border-slate-150">
+                    <span className="text-slate-500">BRI</span>
+                    <span className="font-mono font-black text-slate-900">007501001986565</span>
+                  </div>
+                  <div className="flex justify-between bg-slate-50 p-2 rounded-lg border border-slate-150">
+                    <span className="text-slate-500">MANDIRI</span>
+                    <span className="font-mono font-black text-slate-900">173008118881</span>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Alamat Keuangan / Toko:</p>
+                  <p className="text-[10px] text-slate-600 font-semibold leading-relaxed">
+                    Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan Kecamatan Bojong Kabupaten Purwakarta
+                    <br />
+                    <span className="text-slate-800 font-bold">Telp/Hp: +62 877-6908-0999</span>
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

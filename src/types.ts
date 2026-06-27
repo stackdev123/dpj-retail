@@ -62,3 +62,21 @@ export interface CustomerDebtSummary {
 export interface PriceMemory {
   [itemId: string]: number; // Memorized last price for each item globally
 }
+
+export interface ActivityLog {
+  id: string;
+  action: 'CREATE' | 'EDIT' | 'DELETE' | 'LOGIN' | 'RESET';
+  module: string; // e.g. 'Penjualan', 'Pelanggan', 'Produk', 'Sistem'
+  description: string;
+  timestamp: string; // ISO string
+}
+
+export interface AppUser {
+  id: string;
+  username: string;
+  password?: string;
+  role: 'admin' | 'kasir';
+  fullname: string;
+  createdAt: string;
+}
+

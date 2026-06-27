@@ -5,6 +5,8 @@ import {
   DebtPayment,
   PriceMemory,
   CustomerDebtSummary,
+  ActivityLog,
+  AppUser,
 } from "../types";
 import { supabase } from "./supabase";
 
@@ -36,13 +38,23 @@ export const db = {
 
     if (isNew) {
       await supabase.from("items").insert(payload);
+      await this.addActivityLog("CREATE", "Produk", `Menambahkan produk baru: ${item.name} (${item.unit})`);
     } else {
       await supabase.from("items").update(payload).eq("id", item.id);
+      await this.addActivityLog("EDIT", "Produk", `Mengubah detail produk: ${item.name} (${item.unit})`);
     }
   },
 
   async deleteItem(id: string): Promise<void> {
+    const { data: item } = await supabase
+      .from("items")
+      .select("name")
+      .eq("id", id)
+      .single();
+    const itemName = item ? item.name : "Unknown Item";
+
     await supabase.from("items").delete().eq("id", id);
+    await this.addActivityLog("DELETE", "Produk", `Menghapus produk: ${itemName}`);
   },
 
   // --- CUSTOMERS API ---
@@ -80,6 +92,7 @@ export const db = {
         .select()
         .single();
       result = data;
+      await this.addActivityLog("CREATE", "Pelanggan", `Mendaftarkan pelanggan baru: ${customer.name}`);
     } else {
       const { data } = await supabase
         .from("customers")
@@ -88,6 +101,7 @@ export const db = {
         .select()
         .single();
       result = data;
+      await this.addActivityLog("EDIT", "Pelanggan", `Mengubah profil pelanggan: ${customer.name}`);
     }
 
     return {
@@ -100,7 +114,15 @@ export const db = {
   },
 
   async deleteCustomer(id: string): Promise<void> {
+    const { data: cust } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("id", id)
+      .single();
+    const custName = cust ? cust.name : "Unknown Customer";
+
     await supabase.from("customers").delete().eq("id", id);
+    await this.addActivityLog("DELETE", "Pelanggan", `Menghapus pelanggan: ${custName}`);
   },
 
   // --- TRANSACTIONS API ---
@@ -193,6 +215,13 @@ export const db = {
         .from("price_memory")
         .upsert(pmPayload, { onConflict: "item_id" });
     }
+
+    // Log transaction creation
+    await this.addActivityLog(
+      "CREATE",
+      "Penjualan",
+      `Membuat Transaksi Baru: ${transaction.invoiceNumber} (${transaction.customerName}) - Total: Rp ${transaction.totalAmount.toLocaleString("id-ID")}`
+    );
   },
 
   async updateTransactionPrintCount(id: string): Promise<void> {
@@ -310,6 +339,20 @@ export const db = {
           .eq("id", lastTx.id);
       }
     }
+
+    // Get customer name for logging
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("id", customerId)
+      .single();
+    const customerName = customer ? customer.name : "Pelanggan";
+
+    await this.addActivityLog(
+      "CREATE",
+      "Pelanggan",
+      `Menerima Pembayaran Piutang: ${customerName} sebesar Rp ${totalAmountPaid.toLocaleString("id-ID")} via ${paymentMethod === "cash" ? "Cash" : "Transfer"}`
+    );
   },
 
   // --- PRICE MEMORY API ---
@@ -376,9 +419,9 @@ export const db = {
 
     // Sort by last active descending
     return summaries.sort((a, b) => {
-       if (!a.lastActive) return 1;
-       if (!b.lastActive) return -1;
-       return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
+      if (!a.lastActive) return 1;
+      if (!b.lastActive) return -1;
+      return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
     });
   },
 
@@ -392,6 +435,11 @@ export const db = {
       await supabase.from("transactions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       await supabase.from("customers").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       await supabase.from("items").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      try {
+        await supabase.from("users").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      } catch (e) {
+        console.warn("Could not delete users in reset, table might not exist yet");
+      }
 
       // 2. Insert items
       const { data: insertedItems, error: itemsError } = await supabase
@@ -578,9 +626,383 @@ export const db = {
           .eq("id", txBId);
       }
 
+      // 7. Seed users
+      try {
+        await supabase.from("users").insert([
+          { username: "admin", password: "admin123", role: "admin", fullname: "Administrator" },
+          { username: "kasir", password: "kasir123", role: "kasir", fullname: "Kasir Toko" },
+        ]);
+      } catch (e) {
+        console.warn("Could not insert default users in reset, table might not exist");
+      }
+
+      const defaultUsers: AppUser[] = [
+        {
+          id: "user-admin",
+          username: "admin",
+          password: "admin123",
+          role: "admin",
+          fullname: "Administrator",
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "user-kasir",
+          username: "kasir",
+          password: "kasir123",
+          role: "kasir",
+          fullname: "Kasir Toko",
+          createdAt: new Date().toISOString(),
+        },
+      ];
+      localStorage.setItem("dpj_users", JSON.stringify(defaultUsers));
+
+      await this.addActivityLog(
+        "RESET",
+        "Sistem",
+        "Melakukan reset dan seeding ulang seluruh database ke data awal pabrik"
+      );
     } catch (err) {
       console.error("Error seeding/resetting database:", err);
       throw err;
     }
+  },
+
+  // --- ACTIVITY LOGS API ---
+  async getActivityLogs(): Promise<ActivityLog[]> {
+    try {
+      const { data, error } = await supabase
+        .from("activity_logs")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (!error && data) {
+        return data.map((log) => ({
+          id: log.id,
+          action: log.action as ActivityLog["action"],
+          module: log.module,
+          description: log.description,
+          timestamp: log.created_at,
+        }));
+      }
+    } catch (e) {
+      console.warn("Supabase activity_logs table failed, falling back to local storage:", e);
+    }
+
+    const localLogsStr = localStorage.getItem("dpj_activity_logs");
+    if (localLogsStr) {
+      try {
+        return JSON.parse(localLogsStr);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  },
+
+  async addActivityLog(
+    action: ActivityLog["action"],
+    module: string,
+    description: string
+  ): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const id = `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newLog: ActivityLog = {
+      id,
+      action,
+      module,
+      description,
+      timestamp,
+    };
+
+    try {
+      const { error } = await supabase.from("activity_logs").insert({
+        id,
+        action,
+        module,
+        description,
+        created_at: timestamp,
+      });
+      if (!error) return;
+    } catch (e) {
+      // Ignored, will fallback to local storage
+    }
+
+    try {
+      const logs = await this.getActivityLogs();
+      const updatedLogs = [newLog, ...logs].slice(0, 1000);
+      localStorage.setItem("dpj_activity_logs", JSON.stringify(updatedLogs));
+    } catch (e) {
+      console.error("Failed to save activity log to local storage:", e);
+    }
+  },
+
+  async clearActivityLogs(): Promise<void> {
+    try {
+      await supabase.from("activity_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    } catch (e) { }
+    localStorage.removeItem("dpj_activity_logs");
+  },
+
+  // --- EDIT & DELETE TRANSACTIONS API ---
+  async editTransaction(transaction: Transaction): Promise<void> {
+    // 1. Get existing debt payments to recalculate remaining debt
+    let totalPayments = 0;
+    try {
+      const { data: payments } = await supabase
+        .from("debt_payments")
+        .select("amount_paid")
+        .eq("transaction_id", transaction.id);
+
+      if (payments) {
+        totalPayments = payments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
+      }
+    } catch (e) {
+      console.warn("Error fetching existing debt payments for edit:", e);
+    }
+
+    // 2. Delete payments if method is no longer 'debt'
+    if (transaction.paymentMethod !== "debt") {
+      try {
+        await supabase
+          .from("debt_payments")
+          .delete()
+          .eq("transaction_id", transaction.id);
+        totalPayments = 0;
+      } catch (e) {
+        console.warn("Error deleting debt payments on payment method change:", e);
+      }
+    }
+
+    // 3. Recalculate remaining_debt
+    const remainingDebt =
+      transaction.paymentMethod === "debt"
+        ? Math.max(0, transaction.totalAmount - transaction.amountPaid - totalPayments)
+        : 0;
+
+    const txPayload = {
+      customer_id: transaction.customerId,
+      customer_name: transaction.customerName,
+      total_amount: transaction.totalAmount,
+      payment_method: transaction.paymentMethod,
+      amount_paid: transaction.amountPaid,
+      remaining_debt: remainingDebt,
+      notes: transaction.notes,
+    };
+
+    // 4. Update transaction
+    const { error: txError } = await supabase
+      .from("transactions")
+      .update(txPayload)
+      .eq("id", transaction.id);
+
+    if (txError) {
+      console.warn("Error updating transaction:", txError);
+      throw txError;
+    }
+
+    // 5. Delete and re-insert transaction items
+    const { error: delError } = await supabase
+      .from("transaction_items")
+      .delete()
+      .eq("transaction_id", transaction.id);
+
+    if (delError) {
+      console.warn("Error deleting old items on transaction edit:", delError);
+    }
+
+    const itemsPayload = transaction.items.map((item) => ({
+      transaction_id: transaction.id,
+      item_id: item.itemId,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      subtotal: item.subtotal,
+      unit: item.unit,
+    }));
+
+    const { error: insError } = await supabase
+      .from("transaction_items")
+      .insert(itemsPayload);
+
+    if (insError) {
+      console.warn("Error inserting new items on transaction edit:", insError);
+      throw insError;
+    }
+
+    // 6. Update price memories
+    for (const item of transaction.items) {
+      const pmPayload = {
+        item_id: item.itemId,
+        last_price: item.price,
+      };
+      await supabase
+        .from("price_memory")
+        .upsert(pmPayload, { onConflict: "item_id" });
+    }
+
+    // 7. Log activity
+    await this.addActivityLog(
+      "EDIT",
+      "Penjualan",
+      `Mengubah Transaksi ${transaction.invoiceNumber} (${transaction.customerName}) - Total Baru: Rp ${transaction.totalAmount.toLocaleString("id-ID")}`
+    );
+  },
+
+  async deleteTransaction(id: string): Promise<void> {
+    const { data: tx } = await supabase
+      .from("transactions")
+      .select("invoice_number, customer_name, total_amount")
+      .eq("id", id)
+      .single();
+
+    const invoiceNum = tx ? tx.invoice_number : "Unknown";
+    const custName = tx ? tx.customer_name : "Unknown";
+    const totalAmount = tx ? Number(tx.total_amount) : 0;
+
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.warn("Error deleting transaction:", error);
+      throw error;
+    }
+
+    await this.addActivityLog(
+      "DELETE",
+      "Penjualan",
+      `Menghapus Transaksi ${invoiceNum} (${custName}) senilai Rp ${totalAmount.toLocaleString("id-ID")}`
+    );
+  },
+
+  // --- USERS / LOGIN API ---
+  async getUsers(): Promise<AppUser[]> {
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .order("username");
+      if (!error && data) {
+        return data.map((u) => ({
+          id: u.id,
+          username: u.username,
+          password: u.password,
+          role: u.role as 'admin' | 'kasir',
+          fullname: u.fullname,
+          createdAt: u.created_at,
+        }));
+      }
+    } catch (e) {
+      console.warn("Supabase users table failed, falling back to local storage:", e);
+    }
+
+    // Local storage fallback
+    const localUsersStr = localStorage.getItem("dpj_users");
+    if (localUsersStr) {
+      try {
+        return JSON.parse(localUsersStr);
+      } catch (e) {
+        // Fall to default
+      }
+    }
+
+    // Default users if empty
+    const defaultUsers: AppUser[] = [
+      {
+        id: "user-admin",
+        username: "admin",
+        password: "admin123",
+        role: "admin",
+        fullname: "Administrator",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "user-kasir",
+        username: "kasir",
+        password: "kasir123",
+        role: "kasir",
+        fullname: "Kasir Toko",
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem("dpj_users", JSON.stringify(defaultUsers));
+    return defaultUsers;
+  },
+
+  async saveUser(user: AppUser): Promise<void> {
+    const isNew = user.id.startsWith("user-") || !user.id;
+    const dbPayload = {
+      username: user.username,
+      password: user.password,
+      role: user.role,
+      fullname: user.fullname,
+    };
+
+    let savedOnSupabase = false;
+    try {
+      if (isNew) {
+        const { error } = await supabase.from("users").insert({
+          id: user.id.startsWith("user-") ? undefined : user.id,
+          ...dbPayload
+        });
+        if (!error) savedOnSupabase = true;
+      } else {
+        const { error } = await supabase.from("users").update(dbPayload).eq("id", user.id);
+        if (!error) savedOnSupabase = true;
+      }
+    } catch (e) {
+      console.warn("Failed to save user to Supabase:", e);
+    }
+
+    // Always update local storage for reliability and fallback
+    const localUsers = await this.getUsers();
+    if (isNew) {
+      const newUser: AppUser = {
+        ...user,
+        id: user.id || `user-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+      };
+      const updated = [...localUsers, newUser];
+      localStorage.setItem("dpj_users", JSON.stringify(updated));
+      await this.addActivityLog(
+        "CREATE",
+        "Sistem",
+        `Menambahkan pengguna baru: ${user.fullname} (${user.username}) dengan hak akses ${user.role.toUpperCase()}`
+      );
+    } else {
+      const updated = localUsers.map((u) => {
+        if (u.id === user.id) {
+          return { ...u, ...user };
+        }
+        return u;
+      });
+      localStorage.setItem("dpj_users", JSON.stringify(updated));
+      await this.addActivityLog(
+        "EDIT",
+        "Sistem",
+        `Mengubah detail pengguna: ${user.fullname} (${user.username})`
+      );
+    }
+  },
+
+  async deleteUser(id: string): Promise<void> {
+    const localUsers = await this.getUsers();
+    const userToDelete = localUsers.find((u) => u.id === id);
+    const fullname = userToDelete ? userToDelete.fullname : "Unknown";
+
+    try {
+      await supabase.from("users").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Failed to delete user from Supabase:", e);
+    }
+
+    const updated = localUsers.filter((u) => u.id !== id);
+    localStorage.setItem("dpj_users", JSON.stringify(updated));
+
+    await this.addActivityLog(
+      "DELETE",
+      "Sistem",
+      `Menghapus akun pengguna: ${fullname}`
+    );
   },
 };
