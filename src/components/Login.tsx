@@ -152,28 +152,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                         {loading ? "Menghubungkan..." : "Masuk ke Aplikasi"}
                     </button>
                 </form>
-
-                {/* Demo Credentials Helper Card */}
-                <div className="mt-8 pt-6 border-t border-slate-800/60">
-                    <div className="bg-slate-950/50 rounded-xl border border-slate-800/40 p-4 space-y-2">
-                        <span className="text-[10px] font-black uppercase text-red-500 tracking-wider block">
-                            Akun Default (Demo & Uji Coba)
-                        </span>
-                        <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-400 font-medium">
-                            <div>
-                                <p className="font-bold text-slate-300">Level Admin:</p>
-                                <p className="font-mono mt-0.5">U: <span className="text-white font-bold">admin</span></p>
-                                <p className="font-mono">P: <span className="text-white font-bold">admin123</span></p>
-                            </div>
-                            <div>
-                                <p className="font-bold text-slate-300">Level Kasir:</p>
-                                <p className="font-mono mt-0.5">U: <span className="text-white font-bold">kasir</span></p>
-                                <p className="font-mono">P: <span className="text-white font-bold">kasir123</span></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
             </div>
         </div>
     );
