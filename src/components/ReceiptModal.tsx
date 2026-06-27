@@ -31,6 +31,7 @@ export default function ReceiptModal({
   const [connectedPrinter, setConnectedPrinter] = useState<PrinterDevice | null>(getConnectedPrinter());
   const [printerError, setPrinterError] = useState<string | null>(null);
   const [isPrintingDirect, setIsPrintingDirect] = useState<boolean>(false);
+  const [showUsbSettings, setShowUsbSettings] = useState<boolean>(false);
   const receiptRef = useRef<HTMLDivElement>(null);
   const isIframe = typeof window !== "undefined" && window.self !== window.top;
 
@@ -141,13 +142,26 @@ export default function ReceiptModal({
           <head>
             <title>Cetak Struk - ${transaction.invoiceNumber}</title>
             <style>
-              body {
-                font-family: 'Courier New', Courier, monospace;
+              @page {
+                size: 80mm auto;
+                margin: 0;
+              }
+              html, body {
                 width: 80mm;
-                margin: 0 auto;
-                padding: 10px;
-                font-size: 12px;
+                margin: 0;
+                padding: 0;
+                background: #fff;
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 11px;
                 color: #000;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .receipt-print-wrapper {
+                width: 74mm;
+                margin: 0 auto;
+                padding: 4mm 2mm;
+                box-sizing: border-box;
               }
               .center, .text-center { text-align: center; }
               .bold, .font-bold, .font-black, .font-extrabold { font-weight: bold; }
@@ -179,8 +193,8 @@ export default function ReceiptModal({
               .text-\\[9px\\] { font-size: 9px; }
               .text-\\[10px\\] { font-size: 10px; }
               .text-\\[11px\\] { font-size: 11px; }
-              .text-xs { font-size: 12px; }
-              .text-sm { font-size: 14px; }
+              .text-xs { font-size: 11px; }
+              .text-sm { font-size: 13px; }
               .text-red-600, .text-red-500 { color: #000 !important; }
               .text-slate-400, .text-slate-500 { color: #000 !important; }
               .text-slate-600 { color: #000 !important; }
@@ -200,17 +214,20 @@ export default function ReceiptModal({
                 padding: 5px;
                 text-align: center;
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 13px;
                 margin-bottom: 10px;
               }
               @media print {
-                body { width: 80mm; margin: 0; padding: 0; }
+                html, body { width: 80mm; margin: 0; padding: 0; background: #fff; }
+                .receipt-print-wrapper { width: 74mm; margin: 0 auto; padding: 4mm 2mm; box-sizing: border-box; }
                 @page { margin: 0; }
               }
             </style>
           </head>
           <body>
-            ${printContent}
+            <div class="receipt-print-wrapper">
+              ${printContent}
+            </div>
             <script>
               window.onload = function() {
                 window.print();
@@ -287,248 +304,199 @@ export default function ReceiptModal({
 
   const handleDownloadPDF = () => {
     const isDuplicate = currentPrintCount >= 1;
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a5", // perfect size for standard trade invoices
-    });
-
-    // Outer framing / border
-    doc.setDrawColor(0, 0, 0); // black top border accent
-    doc.setLineWidth(1.5);
-    doc.line(5, 5, 143, 5); // black top border
-
-    // Header logo / title
-    doc.setFont("Helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0); // black
-    doc.text("CV DPJ BERKAH UNGGAS", 10, 15);
-
-    doc.setFont("Helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(6.5);
-    doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan Kecamatan Bojong Kabupaten Purwakarta", 10, 23.5);
-    doc.text("Telp/Hp. +62 877-6908-0999", 10, 27);
-
-    // Receipt Label
-    doc.setFont("Helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    doc.text("NOTA PENJUALAN", 100, 15);
-
-    // Metadata separator
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.3);
-    doc.line(10, 30, 138, 30);
-
-    doc.setFont("Helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`No. Nota  : ${transaction.invoiceNumber}`, 10, 36);
-    doc.text(`Tanggal   : ${formatDate(transaction.date)}`, 10, 41);
-
-    // Safety Truncate for Customer Name to avoid overlap with Stamp box
-    let customerNameDisplay = transaction.customerName;
-    if (isDuplicate && customerNameDisplay.length > 25) {
-      customerNameDisplay = customerNameDisplay.substring(0, 22) + "...";
-    } else if (customerNameDisplay.length > 40) {
-      customerNameDisplay = customerNameDisplay.substring(0, 37) + "...";
-    }
-    doc.text(`Pelanggan : ${customerNameDisplay}`, 10, 46);
-
-    if (isDuplicate) {
-      doc.setFillColor(255, 255, 255);
-      doc.rect(82, 33, 56, 13, "F");
-      doc.setDrawColor(0, 0, 0);
-      doc.rect(82, 33, 56, 13, "D");
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(0, 0, 0);
-      doc.text("*** DUPLIKAT ***", 96, 38);
-      doc.setFont("Helvetica", "normal");
-      doc.setFontSize(7);
-      doc.text("Sudah Pernah Dicetak", 93, 42);
-    }
-
-    // Table Header (using neat lines instead of heavy solid black background block to save ink)
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.3);
-    doc.line(10, 51, 138, 51);
-    doc.line(10, 57, 138, 57);
-
-    doc.setFont("Helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text("Nama Item", 12, 55);
-    doc.text("Qty x Harga", 62, 55);
-    doc.text("Subtotal", 136, 55, { align: "right" });
-
-    // Table content
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("Helvetica", "normal");
-    let y = 61;
-    const pageBottomLimit = 180; // A5 height is 210mm, so 180mm is a safe limit
-
-    transaction.items.forEach((item, index) => {
-      // Auto page break if y exceeds limit
-      if (y > pageBottomLimit) {
-        doc.addPage();
-
-        // Redraw border on new page
-        doc.setDrawColor(0, 0, 0);
-        doc.setLineWidth(1.5);
-        doc.line(5, 5, 143, 5);
-
-        // Mini Header on new page
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-        doc.text("CV DPJ BERKAH UNGGAS", 10, 12);
-
-        doc.setFont("Helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`No. Nota: ${transaction.invoiceNumber} (Sambungan)`, 10, 16);
-
-        // Redraw Table Header (neat lines)
-        doc.setDrawColor(0, 0, 0);
-        doc.setLineWidth(0.3);
-        doc.line(10, 19, 138, 19);
-        doc.line(10, 25, 138, 25);
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(8);
-        doc.setTextColor(0, 0, 0);
-        doc.text("Nama Item", 12, 23);
-        doc.text("Qty x Harga", 62, 23);
-        doc.text("Subtotal", 136, 23, { align: "right" });
-
-        doc.setTextColor(0, 0, 0);
-        doc.setFont("Helvetica", "normal");
-        y = 29;
-      }
-
-      // zebra background shading is removed to save ink
-
-      // Safety Truncate Item Name to avoid column overlap
-      const itemNameDisplay =
-        item.name.length > 25 ? item.name.substring(0, 23) + ".." : item.name;
-
-      doc.text(itemNameDisplay, 12, y);
-      doc.text(
-        `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
-        62,
-        y,
-      );
-      doc.text(formatRupiah(item.subtotal), 136, y, { align: "right" });
-      y += 5.5;
-    });
-
-    // If summary block will overflow the page bottom, push it to a new page
-    if (y + 35 > 200) {
-      doc.addPage();
-
-      // Redraw top border
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(1.5);
-      doc.line(5, 5, 143, 5);
-
-      // Mini Header
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-      doc.text("CV DPJ BERKAH UNGGAS", 10, 12);
-
-      doc.setFont("Helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(0, 0, 0);
-      doc.text(`No. Nota: ${transaction.invoiceNumber} (Ringkasan)`, 10, 16);
-
-      y = 24;
-    }
-
-    // Summary line
-    doc.setDrawColor(0, 0, 0);
-    doc.line(10, y + 1, 138, y + 1);
-    y += 6;
-
-    doc.setFont("Helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text("Metode Pembayaran:", 10, y);
-    doc.setFont("Helvetica", "bold");
-    doc.text(
-      transaction.paymentMethod === "debt"
-        ? "TEMPO (UTANG)"
-        : transaction.paymentMethod.toUpperCase(),
-      42,
-      y,
-    );
-
-    doc.setFont("Helvetica", "normal");
-    doc.text("TOTAL BELANJA:", 82, y);
-    doc.setFont("Helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text(formatRupiah(transaction.totalAmount), 136, y, { align: "right" });
-
-    y += 5;
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("Helvetica", "normal");
-    doc.text("Jumlah Dibayar:", 82, y);
-    doc.setFont("Helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text(formatRupiah(transaction.amountPaid), 136, y, { align: "right" });
-
     const previousDebt =
       totalCustomerDebt -
       (transaction.paymentMethod === "debt" ? transaction.remainingDebt : 0);
 
-    if (previousDebt > 0) {
+    // Calculate dynamic page height in mm based on content length
+    let pageHeight = 155; // baseline height
+    pageHeight += transaction.items.length * 10; // add space for each item (name + details)
+    if (isDuplicate) pageHeight += 12;
+    if (previousDebt > 0) pageHeight += 5;
+    if (totalCustomerDebt > 0) pageHeight += 5;
+
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: [80, pageHeight],
+    });
+
+    // We use Courier standard font for exact thermal printer style
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+
+    let y = 8;
+
+    // 1. DUPLICATE BANNER
+    if (isDuplicate) {
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.3);
+      doc.rect(6, y, 68, 10);
+      doc.setFont("Courier", "bold");
+      doc.setFontSize(10);
+      doc.text("*** DUPLIKAT ***", 40, y + 6, { align: "center" });
+      y += 15;
+    }
+
+    // 2. HEADER
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(11);
+    doc.text("CV DPJ BERKAH UNGGAS", 40, y, { align: "center" });
+    y += 5;
+
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(7.5);
+    doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan", 40, y, { align: "center" });
+    y += 4;
+    doc.text("Kec. Bojong Kab. Purwakarta", 40, y, { align: "center" });
+    y += 4;
+    doc.text("Telp/Hp. +62 877-6908-0999", 40, y, { align: "center" });
+    y += 5;
+
+    // Dashed divider
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+    doc.text("------------------------------------------------", 40, y, { align: "center" });
+    y += 5;
+
+    // 3. METADATA
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(8.5);
+
+    doc.text("No. Nota:", 6, y);
+    doc.text(transaction.invoiceNumber, 74, y, { align: "right" });
+    y += 4.5;
+
+    doc.text("Tanggal :", 6, y);
+    doc.text(formatDate(transaction.date), 74, y, { align: "right" });
+    y += 4.5;
+
+    doc.text("Pelanggan:", 6, y);
+    doc.text(transaction.customerName, 74, y, { align: "right" });
+    y += 5;
+
+    // Dashed divider
+    doc.text("------------------------------------------------", 40, y, { align: "center" });
+    y += 5;
+
+    // 4. ITEMS TABLE HEADER
+    doc.setFont("Courier", "bold");
+    doc.text("Item / Deskripsi", 6, y);
+    doc.text("Subtotal", 74, y, { align: "right" });
+    y += 4;
+    doc.text("------------------------------------------------", 40, y, { align: "center" });
+    y += 5;
+
+    // 5. ITEMS ROWS
+    doc.setFont("Courier", "normal");
+    transaction.items.forEach((item) => {
+      // Item Name
+      doc.setFont("Courier", "bold");
+      doc.text(item.name, 6, y);
+
+      // Subtotal on the same line
+      doc.text(formatRupiah(item.subtotal), 74, y, { align: "right" });
+      y += 4.5;
+
+      // Item Qty x Price
+      doc.setFont("Courier", "normal");
+      doc.text(
+        `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
+        8,
+        y
+      );
       y += 5;
-      doc.setTextColor(0, 0, 0);
-      doc.setFont("Helvetica", "bold");
-      doc.text("UTANG SBLMNYA:", 82, y);
-      doc.text(formatRupiah(previousDebt), 136, y, { align: "right" });
+    });
+
+    // Dashed divider
+    doc.setFont("Courier", "bold");
+    doc.text("------------------------------------------------", 40, y, { align: "center" });
+    y += 5;
+
+    // 6. TOTALS
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(9);
+    doc.text("TOTAL BELANJA:", 6, y);
+    doc.text(formatRupiah(transaction.totalAmount), 74, y, { align: "right" });
+    y += 5;
+
+    doc.setFontSize(8.5);
+    doc.setFont("Courier", "normal");
+    doc.text("Metode Pembayaran:", 6, y);
+    doc.text(
+      transaction.paymentMethod === "debt"
+        ? "UTANG"
+        : transaction.paymentMethod.toUpperCase(),
+      74,
+      y,
+      { align: "right" }
+    );
+    y += 4.5;
+
+    doc.text("Jumlah Dibayar:", 6, y);
+    doc.text(formatRupiah(transaction.amountPaid), 74, y, { align: "right" });
+    y += 4.5;
+
+    if (previousDebt > 0) {
+      doc.setFont("Courier", "bold");
+      doc.text("Utang Sebelumnya:", 6, y);
+      doc.text(formatRupiah(previousDebt), 74, y, { align: "right" });
+      y += 4.5;
     }
 
     if (totalCustomerDebt > 0) {
+      doc.setFont("Courier", "bold");
+      doc.text("Total Semua Utang:", 6, y);
+      doc.text(formatRupiah(totalCustomerDebt), 74, y, { align: "right" });
       y += 5;
-      doc.setTextColor(0, 0, 0);
-      doc.setFont("Helvetica", "bold");
-      doc.text("TOTAL UTANG:", 82, y);
-      doc.text(formatRupiah(totalCustomerDebt), 136, y, { align: "right" });
     }
 
-    // Footer message
-    y += 8;
-    if (y + 10 > 200) {
-      doc.addPage();
-
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(1.5);
-      doc.line(5, 5, 143, 5);
-
-      y = 15;
-    }
-    doc.setDrawColor(0, 0, 0);
-    doc.line(10, y, 138, y);
-
+    // Dashed divider
+    doc.setFont("Courier", "bold");
+    doc.text("------------------------------------------------", 40, y, { align: "center" });
     y += 5;
-    doc.setFont("Helvetica", "italic");
+
+    // 7. BANK ACCOUNTS
+    doc.setFont("Courier", "bold");
     doc.setFontSize(7.5);
-    doc.setTextColor(0, 0, 0);
-    doc.text(
-      "Terima kasih atas kunjungan Anda di CV DPJ Berkah Unggas.",
-      74,
-      y,
-      { align: "center" },
-    );
-    doc.text(
-      "Ayam segar langsung dari pemotongan halal & higienis.",
-      74,
-      y + 3.5,
-      { align: "center" },
-    );
+    doc.text("INFO REKENING PEMBAYARAN", 40, y, { align: "center" });
+    y += 3.5;
+    doc.setFont("Courier", "normal");
+    doc.text("(A/N Panji Paranantias Mulyono)", 40, y, { align: "center" });
+    y += 4.5;
+
+    doc.text("BCA:", 10, y);
+    doc.setFont("Courier", "bold");
+    doc.text("7410888879", 70, y, { align: "right" });
+    y += 4;
+
+    doc.setFont("Courier", "normal");
+    doc.text("BRI:", 10, y);
+    doc.setFont("Courier", "bold");
+    doc.text("007501001986565", 70, y, { align: "right" });
+    y += 4;
+
+    doc.setFont("Courier", "normal");
+    doc.text("MANDIRI:", 10, y);
+    doc.setFont("Courier", "bold");
+    doc.text("173008118881", 70, y, { align: "right" });
+    y += 5.5;
+
+    // Dashed divider
+    doc.text("------------------------------------------------", 40, y, { align: "center" });
+    y += 5;
+
+    // 8. FOOTER
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(8);
+    doc.text("Terima Kasih Atas Kunjungan Anda", 40, y, { align: "center" });
+    y += 4;
+    doc.setFontSize(7);
+    doc.text("Barang yang sudah dibeli tidak dapat ditukar/dikembalikan", 40, y, { align: "center" });
+    y += 4.5;
+    doc.setFontSize(6.5);
+    doc.text("Sistem Kasir v1.0 • CV DPJ Berkah Unggas", 40, y, { align: "center" });
 
     doc.save(`Struk_${transaction.invoiceNumber}.pdf`);
   };
@@ -565,9 +533,6 @@ export default function ReceiptModal({
             {isDuplicate && (
               <div className="duplicate-banner border border-dashed border-slate-950 text-slate-950 p-3 text-center font-black text-xs mb-4 rounded-xl tracking-widest">
                 *** DUPLIKAT ***
-                <div className="text-[10px] font-bold uppercase tracking-wider mt-1 text-slate-950">
-                  Sudah Pernah Dicetak Sebelumnya
-                </div>
               </div>
             )}
 
@@ -723,70 +688,84 @@ export default function ReceiptModal({
 
         {/* Epson USB Direct Print Control */}
         {isWebUSBSupported() && (
-          <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs shrink-0">
-            <div className="flex items-center justify-between font-bold text-slate-800">
-              <span className="flex items-center gap-1.5 uppercase text-[10px] tracking-wider text-slate-500">
-                <Usb className="w-3.5 h-3.5 text-slate-600 animate-pulse" /> Printer Epson TM-80UB (80mm)
+          <div className="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl shrink-0 transition-all duration-200">
+            <button
+              type="button"
+              onClick={() => setShowUsbSettings((prev) => !prev)}
+              className="w-full flex items-center justify-between text-xs font-bold text-slate-700 hover:text-slate-900 focus:outline-none cursor-pointer"
+            >
+              <span className="flex items-center gap-1.5 uppercase text-[9px] tracking-wider text-slate-500 font-extrabold">
+                <Usb className={`w-3.5 h-3.5 text-slate-600 ${connectedPrinter ? "animate-pulse" : ""}`} />
+                Printer USB Epson (80mm)
               </span>
-              {connectedPrinter ? (
-                <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Terhubung
-                </span>
-              ) : (
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
-                  Belum Terhubung
-                </span>
-              )}
-            </div>
-
-            {connectedPrinter ? (
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-slate-700 truncate">
-                  Nama: <span className="text-slate-900 font-extrabold">{connectedPrinter.name}</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    id="direct-escpos-print-btn"
-                    onClick={handleDirectPrint}
-                    disabled={isPrintingDirect}
-                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-wide text-[10px] py-2 px-2.5 shadow-sm transition duration-150 cursor-pointer disabled:bg-emerald-400"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    {isPrintingDirect ? "Mencetak..." : "Cetak Langsung (ESC/POS)"}
-                  </button>
-                  <button
-                    id="disconnect-printer-btn"
-                    onClick={handleDisconnectPrinter}
-                    className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-[10px] py-2 px-2.5 transition duration-150 cursor-pointer"
-                  >
-                    Putus
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                  Hubungkan printer Epson TM-80UB via kabel USB untuk mencetak struk secara langsung instan tanpa dialog browser.
-                </p>
-                <button
-                  id="connect-printer-btn"
-                  onClick={handleConnectPrinter}
-                  className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-black uppercase tracking-wider text-[10px] py-2 px-3 shadow-sm transition duration-150 cursor-pointer"
-                >
-                  <Usb className="w-3.5 h-3.5 text-slate-600" /> Hubungkan Printer USB
-                </button>
-                {isIframe && (
-                  <p className="text-[9px] text-amber-700 font-medium bg-amber-50 border border-amber-100/50 rounded-lg p-2 mt-1 leading-normal">
-                    ⚠️ <b>Tips Iframe:</b> Klik tombol <b>"Buka di Tab Baru"</b> di pojok kanan atas browser Anda agar Chrome dapat membuka dialog koneksi printer USB.
-                  </p>
+              <div className="flex items-center gap-2">
+                {connectedPrinter ? (
+                  <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 font-bold">
+                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Terhubung
+                  </span>
+                ) : (
+                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold">
+                    Belum Terhubung
+                  </span>
                 )}
+                <span className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase">
+                  {showUsbSettings ? "Sembunyikan" : "Hubungkan"}
+                </span>
               </div>
-            )}
+            </button>
 
-            {printerError && (
-              <div className="flex items-start gap-1 p-2 bg-red-50 border border-red-100 rounded-lg text-[10px] font-semibold text-red-600">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <span>{printerError}</span>
+            {showUsbSettings && (
+              <div className="mt-3 pt-2.5 border-t border-slate-200/60 space-y-2 text-xs animate-in fade-in duration-200">
+                {connectedPrinter ? (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold text-slate-700 truncate">
+                      Nama: <span className="text-slate-900 font-extrabold">{connectedPrinter.name}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        id="direct-escpos-print-btn"
+                        onClick={handleDirectPrint}
+                        disabled={isPrintingDirect}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-wide text-[10px] py-2 px-2.5 shadow-sm transition duration-150 cursor-pointer disabled:bg-emerald-400"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        {isPrintingDirect ? "Mencetak..." : "Cetak Langsung (ESC/POS)"}
+                      </button>
+                      <button
+                        id="disconnect-printer-btn"
+                        onClick={handleDisconnectPrinter}
+                        className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-[10px] py-2 px-2.5 transition duration-150 cursor-pointer"
+                      >
+                        Putus
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Hubungkan printer Epson TM-80UB via kabel USB untuk mencetak struk secara langsung instan tanpa dialog browser.
+                    </p>
+                    <button
+                      id="connect-printer-btn"
+                      onClick={handleConnectPrinter}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-black uppercase tracking-wider text-[10px] py-2 px-3 shadow-sm transition duration-150 cursor-pointer"
+                    >
+                      <Usb className="w-3.5 h-3.5 text-slate-600" /> Hubungkan Printer USB
+                    </button>
+                    {isIframe && (
+                      <p className="text-[9px] text-amber-700 font-medium bg-amber-50 border border-amber-100/50 rounded-lg p-2 mt-1 leading-normal">
+                        ⚠️ <b>Tips Iframe:</b> Klik tombol <b>"Buka di Tab Baru"</b> di pojok kanan atas browser Anda agar Chrome dapat membuka dialog koneksi printer USB.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {printerError && (
+                  <div className="flex items-start gap-1 p-2 bg-red-50 border border-red-100 rounded-lg text-[10px] font-semibold text-red-600">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>{printerError}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
