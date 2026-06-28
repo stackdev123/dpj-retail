@@ -33,6 +33,23 @@ export default function App() {
     setSessionLoading(false);
   }, []);
 
+  // Update online status heartbeat when currentUser is logged in
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Immediately register online
+    db.updateOnlineStatus(currentUser.id);
+
+    // Set up heartbeat interval
+    const interval = setInterval(() => {
+      db.updateOnlineStatus(currentUser.id);
+    }, 20000); // every 20 seconds
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [currentUser]);
+
   const handleLoginSuccess = (user: AppUser) => {
     setCurrentUser(user);
     localStorage.setItem('dpj_current_user', JSON.stringify(user));
@@ -40,6 +57,8 @@ export default function App() {
 
   const handleLogout = async () => {
     if (currentUser) {
+      // Mark offline immediately
+      await db.updateOnlineStatus(currentUser.id, true);
       await db.addActivityLog(
         'LOGIN',
         'Sistem',

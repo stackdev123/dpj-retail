@@ -61,8 +61,12 @@ export default function EditTransactionModal({
     // Load items & customers
     useEffect(() => {
         const loadData = async () => {
-            setItems(await db.getItems());
-            setCustomers(await db.getCustomers());
+            const [itemsData, customersData] = await Promise.all([
+                db.getItems(),
+                db.getCustomers(),
+            ]);
+            setItems(itemsData);
+            setCustomers(customersData);
         };
         loadData();
     }, []);

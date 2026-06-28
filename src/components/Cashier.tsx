@@ -57,8 +57,10 @@ export default function Cashier() {
   // Load master data on mount
   useEffect(() => {
     const loadData = async () => {
-      const itemsData = await db.getItems();
-      const customersData = await db.getCustomers();
+      const [itemsData, customersData] = await Promise.all([
+        db.getItems(),
+        db.getCustomers(),
+      ]);
       setItems(itemsData);
       setCustomers(customersData);
 

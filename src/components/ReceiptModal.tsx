@@ -89,8 +89,10 @@ export default function ReceiptModal({
       }
 
       try {
-        const txs = await db.getTransactions();
-        const payments = await db.getDebtPayments();
+        const [txs, payments] = await Promise.all([
+          db.getTransactions(),
+          db.getDebtPayments(),
+        ]);
 
         const targetTime = new Date(transaction.date).getTime();
 

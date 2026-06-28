@@ -42,9 +42,14 @@ export default function Reports() {
   const [confirmDeleteTx, setConfirmDeleteTx] = useState<Transaction | null>(null);
 
   const loadData = async () => {
-    setTransactions(await db.getTransactions());
-    setCustomers(await db.getCustomers());
-    setDebtSummaries(await db.getCustomerDebtSummaries());
+    const [txs, custs, summaries] = await Promise.all([
+      db.getTransactions(),
+      db.getCustomers(),
+      db.getCustomerDebtSummaries(),
+    ]);
+    setTransactions(txs);
+    setCustomers(custs);
+    setDebtSummaries(summaries);
   };
 
   const handleDeleteTx = async (txId: string) => {

@@ -51,10 +51,16 @@ export default function DebtLedger() {
 
   // Reload everything from DB
   const loadData = async () => {
-    setCustomers(await db.getCustomers());
-    setTransactions(await db.getTransactions());
-    setDebtPayments(await db.getDebtPayments());
-    setDebtSummaries(await db.getCustomerDebtSummaries());
+    const [custs, txs, payments, summaries] = await Promise.all([
+      db.getCustomers(),
+      db.getTransactions(),
+      db.getDebtPayments(),
+      db.getCustomerDebtSummaries(),
+    ]);
+    setCustomers(custs);
+    setTransactions(txs);
+    setDebtPayments(payments);
+    setDebtSummaries(summaries);
   };
 
   useEffect(() => {

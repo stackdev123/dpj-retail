@@ -43,8 +43,12 @@ export default function DatabaseManager() {
   }, []);
 
   const handleRefresh = async () => {
-    setItems(await db.getItems());
-    setCustomers(await db.getCustomers());
+    const [itemsData, customersData] = await Promise.all([
+      db.getItems(),
+      db.getCustomers(),
+    ]);
+    setItems(itemsData);
+    setCustomers(customersData);
   };
 
   const handleOpenAddItem = () => {
@@ -106,7 +110,7 @@ export default function DatabaseManager() {
         unit: itemUnit.trim() || "kg",
         createdAt: editingItemId
           ? items.find((i) => i.id === editingItemId)?.createdAt ||
-            new Date().toISOString()
+          new Date().toISOString()
           : new Date().toISOString(),
       };
       await db.saveItem(newItem);
@@ -120,7 +124,7 @@ export default function DatabaseManager() {
         address: customerAddress.trim() || "-",
         createdAt: editingCustomerId
           ? customers.find((c) => c.id === editingCustomerId)?.createdAt ||
-            new Date().toISOString()
+          new Date().toISOString()
           : new Date().toISOString(),
       };
       await db.saveCustomer(newCustomer);
@@ -166,11 +170,10 @@ export default function DatabaseManager() {
               setActiveTab("items");
               setSearchQuery("");
             }}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${
-              activeTab === "items"
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${activeTab === "items"
                 ? "bg-red-600 text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <ShoppingBag className="w-3.5 h-3.5" /> Produk Ayam
           </button>
@@ -180,11 +183,10 @@ export default function DatabaseManager() {
               setActiveTab("customers");
               setSearchQuery("");
             }}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${
-              activeTab === "customers"
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${activeTab === "customers"
                 ? "bg-red-600 text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <User className="w-3.5 h-3.5" /> Data Pelanggan
           </button>
@@ -295,77 +297,77 @@ export default function DatabaseManager() {
             </div>
           )
         ) : /* CUSTOMERS LIST */
-        filteredCustomers.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 text-xs font-semibold">
-            Tidak ada pelanggan ditemukan.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400">
-                  <th className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider">
-                    Nama Pelanggan
-                  </th>
-                  <th className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider">
-                    No. Telepon
-                  </th>
-                  <th className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider">
-                    Alamat
-                  </th>
-                  <th className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider text-right">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredCustomers.map((cust) => (
-                  <tr
-                    key={cust.id}
-                    className="hover:bg-slate-50/30 transition-all duration-150"
-                  >
-                    <td className="py-4 px-6">
-                      <div className="font-bold text-slate-900 text-xs sm:text-sm">
-                        {cust.name}
-                      </div>
-                      {cust.name.toLowerCase() === "pelanggan umum" && (
-                        <span className="text-[10px] text-slate-400 font-bold italic mt-0.5 block">
-                          Sistem Default
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6 text-xs text-slate-600 font-semibold">
-                      {cust.phone || "-"}
-                    </td>
-                    <td className="py-4 px-6 text-xs text-slate-600 font-semibold max-w-[200px] truncate">
-                      {cust.address || "-"}
-                    </td>
-                    <td className="py-4 px-6 text-right space-x-1.5">
-                      <button
-                        onClick={() => handleOpenEditCustomer(cust)}
-                        className="inline-flex rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-[#0b0f19] transition cursor-pointer"
-                        title="Ubah"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      {cust.name.toLowerCase() !== "pelanggan umum" && (
-                        <button
-                          onClick={() =>
-                            handleDeleteCustomer(cust.id, cust.name)
-                          }
-                          className="inline-flex rounded-xl p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 transition cursor-pointer"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </td>
+          filteredCustomers.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 text-xs font-semibold">
+              Tidak ada pelanggan ditemukan.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400">
+                    <th className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider">
+                      Nama Pelanggan
+                    </th>
+                    <th className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider">
+                      No. Telepon
+                    </th>
+                    <th className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider">
+                      Alamat
+                    </th>
+                    <th className="py-4 px-6 text-[10px] font-bold uppercase tracking-wider text-right">
+                      Aksi
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredCustomers.map((cust) => (
+                    <tr
+                      key={cust.id}
+                      className="hover:bg-slate-50/30 transition-all duration-150"
+                    >
+                      <td className="py-4 px-6">
+                        <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                          {cust.name}
+                        </div>
+                        {cust.name.toLowerCase() === "pelanggan umum" && (
+                          <span className="text-[10px] text-slate-400 font-bold italic mt-0.5 block">
+                            Sistem Default
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-xs text-slate-600 font-semibold">
+                        {cust.phone || "-"}
+                      </td>
+                      <td className="py-4 px-6 text-xs text-slate-600 font-semibold max-w-[200px] truncate">
+                        {cust.address || "-"}
+                      </td>
+                      <td className="py-4 px-6 text-right space-x-1.5">
+                        <button
+                          onClick={() => handleOpenEditCustomer(cust)}
+                          className="inline-flex rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-[#0b0f19] transition cursor-pointer"
+                          title="Ubah"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        {cust.name.toLowerCase() !== "pelanggan umum" && (
+                          <button
+                            onClick={() =>
+                              handleDeleteCustomer(cust.id, cust.name)
+                            }
+                            className="inline-flex rounded-xl p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 transition cursor-pointer"
+                            title="Hapus"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
       </div>
 
       {/* CREATE / EDIT MODAL */}

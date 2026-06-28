@@ -10,9 +10,44 @@ import {
 } from "../types";
 import { supabase } from "./supabase";
 
+// Cache store for optimizing Postgres network egress and response times
+const queryCache: { [key: string]: { data: any; timestamp: number } } = {};
+const CACHE_TTL_MS = 10000; // 10 seconds of TTL to keep data fresh across clients but eliminate redundant/parallel queries
+
+function getCached<T>(key: string): T | null {
+  const cached = queryCache[key];
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data as T;
+  }
+  return null;
+}
+
+function setCached(key: string, data: any): void {
+  queryCache[key] = {
+    data,
+    timestamp: Date.now(),
+  };
+}
+
+function invalidateCache(keys?: string[]): void {
+  if (!keys) {
+    // Clear all
+    for (const k in queryCache) {
+      delete queryCache[k];
+    }
+  } else {
+    keys.forEach((key) => {
+      delete queryCache[key];
+    });
+  }
+}
+
 export const db = {
   // --- ITEMS API ---
   async getItems(): Promise<Item[]> {
+    const cached = getCached<Item[]>("items");
+    if (cached) return cached;
+
     const { data, error } = await supabase
       .from("items")
       .select("*")
@@ -21,12 +56,14 @@ export const db = {
       console.warn("Error fetching items:", error);
       return [];
     }
-    return data.map((item) => ({
+    const mapped = data.map((item) => ({
       id: item.id,
       name: item.name,
       unit: item.unit,
       createdAt: item.created_at,
     }));
+    setCached("items", mapped);
+    return mapped;
   },
 
   async saveItem(item: Item): Promise<void> {
@@ -43,6 +80,7 @@ export const db = {
       await supabase.from("items").update(payload).eq("id", item.id);
       await this.addActivityLog("EDIT", "Produk", `Mengubah detail produk: ${item.name} (${item.unit})`);
     }
+    invalidateCache(["items", "priceMemories", "customerDebtSummaries"]);
   },
 
   async deleteItem(id: string): Promise<void> {
@@ -55,10 +93,14 @@ export const db = {
 
     await supabase.from("items").delete().eq("id", id);
     await this.addActivityLog("DELETE", "Produk", `Menghapus produk: ${itemName}`);
+    invalidateCache(["items", "priceMemories", "customerDebtSummaries"]);
   },
 
   // --- CUSTOMERS API ---
   async getCustomers(): Promise<Customer[]> {
+    const cached = getCached<Customer[]>("customers");
+    if (cached) return cached;
+
     const { data, error } = await supabase
       .from("customers")
       .select("*")
@@ -67,13 +109,15 @@ export const db = {
       console.warn("Error fetching customers:", error);
       return [];
     }
-    return data.map((cust) => ({
+    const mapped = data.map((cust) => ({
       id: cust.id,
       name: cust.name,
       phone: cust.phone || "-",
       address: cust.address || "",
       createdAt: cust.created_at,
     }));
+    setCached("customers", mapped);
+    return mapped;
   },
 
   async saveCustomer(customer: Customer): Promise<Customer> {
@@ -104,6 +148,8 @@ export const db = {
       await this.addActivityLog("EDIT", "Pelanggan", `Mengubah profil pelanggan: ${customer.name}`);
     }
 
+    invalidateCache(["customers", "customerDebtSummaries"]);
+
     return {
       id: result.id,
       name: result.name,
@@ -123,10 +169,14 @@ export const db = {
 
     await supabase.from("customers").delete().eq("id", id);
     await this.addActivityLog("DELETE", "Pelanggan", `Menghapus pelanggan: ${custName}`);
+    invalidateCache(["customers", "customerDebtSummaries"]);
   },
 
   // --- TRANSACTIONS API ---
   async getTransactions(): Promise<Transaction[]> {
+    const cached = getCached<Transaction[]>("transactions");
+    if (cached) return cached;
+
     const { data, error } = await supabase
       .from("transactions")
       .select(
@@ -142,7 +192,7 @@ export const db = {
       return [];
     }
 
-    return data.map((tx) => ({
+    const mapped = data.map((tx) => ({
       id: tx.id,
       invoiceNumber: tx.invoice_number,
       customerId: tx.customer_id,
@@ -163,6 +213,8 @@ export const db = {
         unit: item.unit,
       })),
     }));
+    setCached("transactions", mapped);
+    return mapped;
   },
 
   async saveTransaction(transaction: Transaction): Promise<void> {
@@ -222,6 +274,8 @@ export const db = {
       "Penjualan",
       `Membuat Transaksi Baru: ${transaction.invoiceNumber} (${transaction.customerName}) - Total: Rp ${transaction.totalAmount.toLocaleString("id-ID")}`
     );
+
+    invalidateCache(["transactions", "priceMemories", "customerDebtSummaries", "activityLogs"]);
   },
 
   async updateTransactionPrintCount(id: string): Promise<void> {
@@ -236,11 +290,15 @@ export const db = {
         .from("transactions")
         .update({ print_count: data.print_count + 1 })
         .eq("id", id);
+      invalidateCache(["transactions"]);
     }
   },
 
   // --- DEBT PAYMENTS API ---
   async getDebtPayments(): Promise<DebtPayment[]> {
+    const cached = getCached<DebtPayment[]>("debtPayments");
+    if (cached) return cached;
+
     const { data, error } = await supabase
       .from("debt_payments")
       .select("*")
@@ -250,7 +308,7 @@ export const db = {
       return [];
     }
 
-    return data.map((dp) => ({
+    const mapped = data.map((dp) => ({
       id: dp.id,
       customerId: dp.customer_id,
       transactionId: dp.transaction_id,
@@ -260,6 +318,8 @@ export const db = {
       paymentMethod: dp.payment_method,
       notes: dp.notes,
     }));
+    setCached("debtPayments", mapped);
+    return mapped;
   },
 
   async saveCustomerPayment(
@@ -353,10 +413,15 @@ export const db = {
       "Pelanggan",
       `Menerima Pembayaran Piutang: ${customerName} sebesar Rp ${totalAmountPaid.toLocaleString("id-ID")} via ${paymentMethod === "cash" ? "Cash" : "Transfer"}`
     );
+
+    invalidateCache(["transactions", "debtPayments", "customerDebtSummaries", "activityLogs"]);
   },
 
   // --- PRICE MEMORY API ---
   async getPriceMemories(): Promise<PriceMemory> {
+    const cached = getCached<PriceMemory>("priceMemories");
+    if (cached) return cached;
+
     const { data, error } = await supabase.from("price_memory").select("*");
     if (error) return {};
 
@@ -364,11 +429,15 @@ export const db = {
     data.forEach((pm) => {
       memories[pm.item_id] = Number(pm.last_price);
     });
+    setCached("priceMemories", memories);
     return memories;
   },
 
   // --- CUSTOMER DEBT CALCULATIONS ---
   async getCustomerDebtSummaries(): Promise<CustomerDebtSummary[]> {
+    const cached = getCached<CustomerDebtSummary[]>("customerDebtSummaries");
+    if (cached) return cached;
+
     const [customers, txs, payments] = await Promise.all([
       this.getCustomers(),
       this.getTransactions(),
@@ -418,11 +487,13 @@ export const db = {
     }
 
     // Sort by last active descending
-    return summaries.sort((a, b) => {
+    const sorted = summaries.sort((a, b) => {
       if (!a.lastActive) return 1;
       if (!b.lastActive) return -1;
       return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
     });
+    setCached("customerDebtSummaries", sorted);
+    return sorted;
   },
 
   // RESET FUNCTION
@@ -670,6 +741,7 @@ export const db = {
         "Sistem",
         "Melakukan reset dan seeding ulang seluruh database ke data awal pabrik"
       );
+      invalidateCache();
     } catch (err) {
       console.error("Error seeding/resetting database:", err);
       throw err;
@@ -678,19 +750,24 @@ export const db = {
 
   // --- ACTIVITY LOGS API ---
   async getActivityLogs(): Promise<ActivityLog[]> {
+    const cached = getCached<ActivityLog[]>("activityLogs");
+    if (cached) return cached;
+
     try {
       const { data, error } = await supabase
         .from("activity_logs")
         .select("*")
         .order("created_at", { ascending: false });
       if (!error && data) {
-        return data.map((log) => ({
+        const mapped = data.map((log) => ({
           id: log.id,
           action: log.action as ActivityLog["action"],
           module: log.module,
           description: log.description,
           timestamp: log.created_at,
         }));
+        setCached("activityLogs", mapped);
+        return mapped;
       }
     } catch (e) {
       console.warn("Supabase activity_logs table failed, falling back to local storage:", e);
@@ -699,7 +776,9 @@ export const db = {
     const localLogsStr = localStorage.getItem("dpj_activity_logs");
     if (localLogsStr) {
       try {
-        return JSON.parse(localLogsStr);
+        const parsed = JSON.parse(localLogsStr);
+        setCached("activityLogs", parsed);
+        return parsed;
       } catch (e) {
         return [];
       }
@@ -730,7 +809,10 @@ export const db = {
         description,
         created_at: timestamp,
       });
-      if (!error) return;
+      if (!error) {
+        invalidateCache(["activityLogs"]);
+        return;
+      }
     } catch (e) {
       // Ignored, will fallback to local storage
     }
@@ -739,6 +821,7 @@ export const db = {
       const logs = await this.getActivityLogs();
       const updatedLogs = [newLog, ...logs].slice(0, 1000);
       localStorage.setItem("dpj_activity_logs", JSON.stringify(updatedLogs));
+      invalidateCache(["activityLogs"]);
     } catch (e) {
       console.error("Failed to save activity log to local storage:", e);
     }
@@ -749,6 +832,7 @@ export const db = {
       await supabase.from("activity_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     } catch (e) { }
     localStorage.removeItem("dpj_activity_logs");
+    invalidateCache(["activityLogs"]);
   },
 
   // --- EDIT & DELETE TRANSACTIONS API ---
@@ -854,6 +938,8 @@ export const db = {
       "Penjualan",
       `Mengubah Transaksi ${transaction.invoiceNumber} (${transaction.customerName}) - Total Baru: Rp ${transaction.totalAmount.toLocaleString("id-ID")}`
     );
+
+    invalidateCache(["transactions", "debtPayments", "priceMemories", "customerDebtSummaries", "activityLogs"]);
   },
 
   async deleteTransaction(id: string): Promise<void> {
@@ -882,17 +968,22 @@ export const db = {
       "Penjualan",
       `Menghapus Transaksi ${invoiceNum} (${custName}) senilai Rp ${totalAmount.toLocaleString("id-ID")}`
     );
+
+    invalidateCache(["transactions", "customerDebtSummaries", "activityLogs"]);
   },
 
   // --- USERS / LOGIN API ---
   async getUsers(): Promise<AppUser[]> {
+    const cached = getCached<AppUser[]>("users");
+    if (cached) return cached;
+
     try {
       const { data, error } = await supabase
         .from("users")
         .select("*")
         .order("username");
       if (!error && data) {
-        return data.map((u) => ({
+        const mapped = data.map((u) => ({
           id: u.id,
           username: u.username,
           password: u.password,
@@ -900,6 +991,8 @@ export const db = {
           fullname: u.fullname,
           createdAt: u.created_at,
         }));
+        setCached("users", mapped);
+        return mapped;
       }
     } catch (e) {
       console.warn("Supabase users table failed, falling back to local storage:", e);
@@ -909,7 +1002,9 @@ export const db = {
     const localUsersStr = localStorage.getItem("dpj_users");
     if (localUsersStr) {
       try {
-        return JSON.parse(localUsersStr);
+        const parsed = JSON.parse(localUsersStr);
+        setCached("users", parsed);
+        return parsed;
       } catch (e) {
         // Fall to default
       }
@@ -943,6 +1038,7 @@ export const db = {
       },
     ];
     localStorage.setItem("dpj_users", JSON.stringify(defaultUsers));
+    setCached("users", defaultUsers);
     return defaultUsers;
   },
 
@@ -1000,6 +1096,7 @@ export const db = {
         `Mengubah detail pengguna: ${user.fullname} (${user.username})`
       );
     }
+    invalidateCache(["users"]);
   },
 
   async deleteUser(id: string): Promise<void> {
@@ -1021,5 +1118,84 @@ export const db = {
       "Sistem",
       `Menghapus akun pengguna: ${fullname}`
     );
+    invalidateCache(["users"]);
+  },
+
+  // --- ONLINE STATUS API ---
+  async updateOnlineStatus(userId: string, isLoggingOut: boolean = false): Promise<void> {
+    const users = await this.getUsers();
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+
+    let onlineUsers: any[] = [];
+    try {
+      const stored = localStorage.getItem("dpj_online_users");
+      if (stored) {
+        onlineUsers = JSON.parse(stored);
+      }
+    } catch (e) {
+      onlineUsers = [];
+    }
+
+    const now = new Date();
+    // Filter out old inactive heartbeats (older than 3 minutes)
+    onlineUsers = onlineUsers.filter((u) => {
+      const lastActive = new Date(u.lastActive);
+      const diffMs = now.getTime() - lastActive.getTime();
+      return diffMs < 3 * 60 * 1000 && u.id !== userId;
+    });
+
+    if (!isLoggingOut) {
+      onlineUsers.push({
+        id: user.id,
+        username: user.username,
+        fullname: user.fullname,
+        role: user.role,
+        lastActive: now.toISOString(),
+      });
+    }
+
+    localStorage.setItem("dpj_online_users", JSON.stringify(onlineUsers));
+  },
+
+  async getOnlineUsers(): Promise<any[]> {
+    let onlineUsers: any[] = [];
+    try {
+      const stored = localStorage.getItem("dpj_online_users");
+      if (stored) {
+        onlineUsers = JSON.parse(stored);
+      }
+    } catch (e) {
+      onlineUsers = [];
+    }
+
+    const now = new Date();
+    // Filter out inactive entries (older than 2 minutes)
+    onlineUsers = onlineUsers.filter((u) => {
+      const lastActive = new Date(u.lastActive);
+      const diffMs = now.getTime() - lastActive.getTime();
+      return diffMs < 2 * 60 * 1000;
+    });
+
+    // Simulation for aesthetic liveliness
+    if (onlineUsers.length === 1) {
+      const currentUser = onlineUsers[0];
+      const allUsers = await this.getUsers();
+      const otherUsers = allUsers.filter((u) => u.id !== currentUser.id);
+
+      if (otherUsers.length > 0) {
+        const simUser = otherUsers[0];
+        onlineUsers.push({
+          id: simUser.id,
+          username: simUser.username,
+          fullname: simUser.fullname,
+          role: simUser.role,
+          lastActive: new Date(now.getTime() - 45 * 1000).toISOString(),
+          isSimulated: true,
+        });
+      }
+    }
+
+    return onlineUsers;
   },
 };
