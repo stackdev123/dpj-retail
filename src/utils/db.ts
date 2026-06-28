@@ -7,6 +7,7 @@ import {
   CustomerDebtSummary,
   ActivityLog,
   AppUser,
+  PaymentMethod,
 } from "../types";
 import { supabase } from "./supabase";
 
@@ -192,43 +193,70 @@ export const db = {
       return [];
     }
 
-    const mapped = data.map((tx) => ({
-      id: tx.id,
-      invoiceNumber: tx.invoice_number,
-      customerId: tx.customer_id,
-      customerName: tx.customer_name,
-      totalAmount: Number(tx.total_amount),
-      paymentMethod: tx.payment_method,
-      amountPaid: Number(tx.amount_paid),
-      remainingDebt: Number(tx.remaining_debt),
-      date: tx.date,
-      printCount: tx.print_count,
-      notes: tx.notes,
-      items: tx.transaction_items.map((item: any) => ({
-        itemId: item.item_id,
-        name: item.name,
-        price: Number(item.price),
-        quantity: Number(item.quantity),
-        subtotal: Number(item.subtotal),
-        unit: item.unit,
-      })),
-    }));
+    const mapped = data.map((tx) => {
+      let paymentMethod = tx.payment_method as PaymentMethod;
+      let cashAmount = undefined;
+      let transferAmount = undefined;
+      let notes = tx.notes || "";
+
+      if (notes && notes.includes("[MIX_PAYMENT:")) {
+        const match = notes.match(/\[MIX_PAYMENT:cash=(\d+);transfer=(\d+)\]/);
+        if (match) {
+          paymentMethod = 'mix';
+          cashAmount = Number(match[1]);
+          transferAmount = Number(match[2]);
+          notes = notes.replace(/\[MIX_PAYMENT:[^\]]+\]\s*/, "");
+        }
+      }
+
+      return {
+        id: tx.id,
+        invoiceNumber: tx.invoice_number,
+        customerId: tx.customer_id,
+        customerName: tx.customer_name,
+        totalAmount: Number(tx.total_amount),
+        paymentMethod,
+        amountPaid: Number(tx.amount_paid),
+        remainingDebt: Number(tx.remaining_debt),
+        date: tx.date,
+        printCount: tx.print_count,
+        notes: notes || undefined,
+        cashAmount,
+        transferAmount,
+        items: tx.transaction_items.map((item: any) => ({
+          itemId: item.item_id,
+          name: item.name,
+          price: Number(item.price),
+          quantity: Number(item.quantity),
+          subtotal: Number(item.subtotal),
+          unit: item.unit,
+        })),
+      };
+    });
     setCached("transactions", mapped);
     return mapped;
   },
 
   async saveTransaction(transaction: Transaction): Promise<void> {
+    let dbPaymentMethod = transaction.paymentMethod;
+    let notes = transaction.notes || "";
+
+    if (transaction.paymentMethod === "mix") {
+      dbPaymentMethod = "cash";
+      notes = `[MIX_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
+    }
+
     const txPayload = {
       invoice_number: transaction.invoiceNumber,
       customer_id: transaction.customerId,
       customer_name: transaction.customerName,
       total_amount: transaction.totalAmount,
-      payment_method: transaction.paymentMethod,
+      payment_method: dbPaymentMethod,
       amount_paid: transaction.amountPaid,
       remaining_debt: transaction.remainingDebt,
       date: transaction.date,
       print_count: transaction.printCount || 0,
-      notes: transaction.notes,
+      notes: notes || null,
     };
 
     // Insert transaction
@@ -452,36 +480,83 @@ export const db = {
       const customerTxs = txs.filter((t) => t.customerId === customer.id);
       const customerPayments = payments.filter((p) => p.customerId === customer.id);
 
-      let totalDebt = 0;
-      let lastActive = new Date(0).toISOString();
+      const temp: any[] = [];
 
-      customerTxs.forEach((t) => {
-        if (t.paymentMethod === "debt") {
-          totalDebt += t.remainingDebt;
-          if (new Date(t.date) > new Date(lastActive)) {
-            lastActive = t.date;
+      // Add sales transactions
+      customerTxs.forEach((tx) => {
+        temp.push({
+          id: tx.id,
+          date: tx.date,
+          type: "sale",
+          paymentMethod: tx.paymentMethod,
+          debit: tx.totalAmount,
+          credit: tx.amountPaid, // amount paid initially
+          cashAmount: tx.cashAmount,
+          transferAmount: tx.transferAmount,
+        });
+      });
+
+      // Add payments
+      customerPayments.forEach((pay) => {
+        temp.push({
+          id: pay.id,
+          date: pay.date,
+          type: "payment",
+          paymentMethod: pay.paymentMethod,
+          debit: 0,
+          credit: pay.amountPaid,
+        });
+      });
+
+      // Sort chronologically
+      temp.sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
+
+      let totalPembelian = 0;
+      let totalTransfer = 0;
+      let totalCash = 0;
+      let lastActive = "";
+
+      temp.forEach((entry) => {
+        if (!lastActive || new Date(entry.date) > new Date(lastActive)) {
+          lastActive = entry.date;
+        }
+
+        totalPembelian += entry.debit || 0;
+
+        if (entry.type === "payment") {
+          if (entry.paymentMethod === "transfer") {
+            totalTransfer += entry.credit || 0;
+          } else {
+            totalCash += entry.credit || 0;
+          }
+        } else {
+          // Sale
+          if (entry.paymentMethod === "transfer") {
+            totalTransfer += entry.credit || 0;
+          } else if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") {
+            totalCash += entry.credit || 0;
+          } else if (entry.paymentMethod === "mix") {
+            totalTransfer += entry.transferAmount || 0;
+            totalCash += entry.cashAmount || 0;
           }
         }
       });
 
-      let totalPaid = 0;
-      customerPayments.forEach((p) => {
-        totalPaid += p.amountPaid;
-        if (new Date(p.date) > new Date(lastActive)) {
-          lastActive = p.date;
-        }
-      });
+      const remainingDebt = totalPembelian - totalTransfer - totalCash;
 
-      const remainingDebt = totalDebt - totalPaid;
-
-      if (totalDebt > 0 || totalPaid > 0) {
+      if (totalPembelian > 0 || (totalTransfer + totalCash) > 0) {
         summaries.push({
           customerId: customer.id,
           customerName: customer.name,
-          totalDebt,
-          totalPaid,
+          totalDebt: totalPembelian,
+          totalPaid: totalTransfer + totalCash,
           remainingDebt,
-          lastActive: lastActive === new Date(0).toISOString() ? "" : lastActive,
+          lastActive,
+          totalPembelian,
+          totalTransfer,
+          totalCash,
         });
       }
     }
@@ -871,14 +946,22 @@ export const db = {
         ? Math.max(0, transaction.totalAmount - transaction.amountPaid - totalPayments)
         : 0;
 
+    let dbPaymentMethod = transaction.paymentMethod;
+    let notes = transaction.notes || "";
+
+    if (transaction.paymentMethod === "mix") {
+      dbPaymentMethod = "cash";
+      notes = `[MIX_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
+    }
+
     const txPayload = {
       customer_id: transaction.customerId,
       customer_name: transaction.customerName,
       total_amount: transaction.totalAmount,
-      payment_method: transaction.paymentMethod,
+      payment_method: dbPaymentMethod,
       amount_paid: transaction.amountPaid,
       remaining_debt: remainingDebt,
-      notes: transaction.notes,
+      notes: notes || null,
     };
 
     // 4. Update transaction

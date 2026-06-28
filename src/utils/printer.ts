@@ -240,6 +240,10 @@ export function compileEscPosReceipt(
 
     printTotalRow("TOTAL BELANJA:", formatRupiah(transaction.totalAmount), true);
     printTotalRow("Metode Pembayaran:", transaction.paymentMethod === "debt" ? "UTANG (TEMPO)" : transaction.paymentMethod.toUpperCase());
+    if (transaction.paymentMethod === "mix") {
+        printTotalRow(" - Cash / Tunai:", formatRupiah(transaction.cashAmount || 0));
+        printTotalRow(" - Transfer:", formatRupiah(transaction.transferAmount || 0));
+    }
     printTotalRow("Jumlah Dibayar:", formatRupiah(transaction.amountPaid));
 
     const previousDebt =

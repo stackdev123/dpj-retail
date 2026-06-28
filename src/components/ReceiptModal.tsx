@@ -276,6 +276,10 @@ export default function ReceiptModal({
     txt += `------------------------------------------------\n`;
     txt += `TOTAL     : ${formatRupiah(transaction.totalAmount).padStart(34)}\n`;
     txt += `METODE    : ${transaction.paymentMethod.toUpperCase().padStart(34)}\n`;
+    if (transaction.paymentMethod === "mix") {
+      txt += ` - CASH   : ${formatRupiah(transaction.cashAmount || 0).padStart(34)}\n`;
+      txt += ` - TRSF   : ${formatRupiah(transaction.transferAmount || 0).padStart(34)}\n`;
+    }
     txt += `BAYAR     : ${formatRupiah(transaction.amountPaid).padStart(34)}\n`;
 
     const previousDebt =
@@ -435,6 +439,15 @@ export default function ReceiptModal({
       { align: "right" }
     );
     y += 4.5;
+
+    if (transaction.paymentMethod === "mix") {
+      doc.text(" - Cash:", 6, y);
+      doc.text(formatRupiah(transaction.cashAmount || 0), 74, y, { align: "right" });
+      y += 4.5;
+      doc.text(" - Transfer:", 6, y);
+      doc.text(formatRupiah(transaction.transferAmount || 0), 74, y, { align: "right" });
+      y += 4.5;
+    }
 
     doc.text("Jumlah Dibayar:", 6, y);
     doc.text(formatRupiah(transaction.amountPaid), 74, y, { align: "right" });
@@ -619,12 +632,26 @@ export default function ReceiptModal({
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>Metode Pembayaran:</span>
-                <span className="uppercase text-slate-900">
+                <span className="uppercase text-slate-900 font-bold">
                   {transaction.paymentMethod === "debt"
                     ? "Utang"
-                    : transaction.paymentMethod}
+                    : transaction.paymentMethod === "mix"
+                      ? "Campuran (Mix)"
+                      : transaction.paymentMethod}
                 </span>
               </div>
+              {transaction.paymentMethod === "mix" && (
+                <>
+                  <div className="flex justify-between text-slate-500 pl-4">
+                    <span>- Cash / Tunai:</span>
+                    <span className="text-slate-800">{formatRupiah(transaction.cashAmount || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500 pl-4">
+                    <span>- Transfer:</span>
+                    <span className="text-slate-800">{formatRupiah(transaction.transferAmount || 0)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between text-slate-600">
                 <span>Jumlah Dibayar:</span>
                 <span className="text-slate-900">

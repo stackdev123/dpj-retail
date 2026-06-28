@@ -440,6 +440,7 @@ export default function Reports() {
               <option value="all">Semua Metode</option>
               <option value="cash">Cash (Tunai)</option>
               <option value="transfer">Transfer Bank</option>
+              <option value="mix">Campuran (Mix)</option>
               <option value="debt">Utang (Tempo)</option>
             </select>
           </div>
@@ -567,12 +568,16 @@ export default function Reports() {
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                               : tx.paymentMethod === "transfer"
                                 ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : "bg-amber-50 text-amber-700 border-amber-200"
+                                : tx.paymentMethod === "mix"
+                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
                             }`}
                         >
                           {tx.paymentMethod === "debt"
                             ? "Utang"
-                            : tx.paymentMethod}
+                            : tx.paymentMethod === "mix"
+                              ? "Campuran (Mix)"
+                              : tx.paymentMethod}
                         </span>
                       </td>
                       <td className="py-3.5 px-5 text-right font-bold text-slate-900 font-mono">
