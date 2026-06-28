@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Item,
   Customer,
@@ -20,6 +20,8 @@ import {
   FileText,
   CheckCircle2,
   UserPlus,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 
 export default function Cashier() {
@@ -32,6 +34,9 @@ export default function Cashier() {
 
   // Cart Form State
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [itemSearchQuery, setItemSearchQuery] = useState("");
+  const [isItemDropdownOpen, setIsItemDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [inputPrice, setInputPrice] = useState<number | "">("");
   const [inputQuantity, setInputQuantity] = useState<number | "">("");
 
@@ -92,7 +97,40 @@ export default function Cashier() {
     loadPrice();
   }, [selectedItemId]);
 
+  // Click outside listener for product dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsItemDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Sync search query text with selected product
+  useEffect(() => {
+    if (selectedItemId) {
+      const selectedItem = items.find((i) => i.id === selectedItemId);
+      if (selectedItem) {
+        setItemSearchQuery(selectedItem.name);
+      }
+    } else {
+      setItemSearchQuery("");
+    }
+  }, [selectedItemId, items]);
+
   const cartTotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+  const selectedItem = items.find((i) => i.id === selectedItemId);
+  const showAll = !itemSearchQuery || (selectedItem && itemSearchQuery === selectedItem.name);
+  const filteredItems = showAll
+    ? items
+    : items.filter((item) =>
+      item.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
+    );
 
   // Auto-set amount paid if cash/transfer is selected (to make the flow faster)
   useEffect(() => {
@@ -286,8 +324,8 @@ export default function Cashier() {
       {/* LEFT COLUMN: PRODUCT PICKER & CART (8 Cols) */}
       <div className="lg:col-span-7 xl:col-span-8 space-y-6 sm:space-y-8">
         {/* Item Picker Card */}
-        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 sm:p-6 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-red-500 to-red-600"></div>
+        <div className="bg-white rounded-2xl border border-slate-200/50 p-5 sm:p-6 shadow-sm relative">
+          <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-red-500 to-red-600 rounded-t-2xl"></div>
           <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-900 mb-4 flex items-center gap-2">
             <ShoppingCart className="w-4 h-4 text-red-600" /> Pilih Produk &
             Harga
@@ -297,24 +335,78 @@ export default function Cashier() {
             onSubmit={handleAddToCart}
             className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end"
           >
-            {/* Item Dropdown */}
-            <div className="sm:col-span-5">
+            {/* Item Combobox (Searchable Dropdown) */}
+            <div className="sm:col-span-5 relative" ref={dropdownRef}>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Pilih Produk Ayam
               </label>
-              <select
-                id="cashier-item-select"
-                value={selectedItemId}
-                onChange={(e) => setSelectedItemId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs text-slate-900 focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none transition-all duration-200"
-              >
-                <option value="">-- Pilih Produk --</option>
-                {items.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} ({item.unit})
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5 pointer-events-none" />
+                <input
+                  id="cashier-item-select"
+                  type="text"
+                  placeholder="Ketik nama produk..."
+                  value={itemSearchQuery}
+                  onFocus={() => setIsItemDropdownOpen(true)}
+                  onChange={(e) => {
+                    setItemSearchQuery(e.target.value);
+                    setIsItemDropdownOpen(true);
+                    if (!e.target.value) {
+                      setSelectedItemId("");
+                    } else {
+                      const match = items.find(
+                        (item) =>
+                          item.name.toLowerCase() ===
+                          e.target.value.trim().toLowerCase()
+                      );
+                      if (match) {
+                        setSelectedItemId(match.id);
+                      } else {
+                        setSelectedItemId("");
+                      }
+                    }
+                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-8 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none transition-all duration-200"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsItemDropdownOpen(!isItemDropdownOpen)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 focus:outline-none"
+                >
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isItemDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+
+              {isItemDropdownOpen && (
+                <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg py-1 divide-y divide-slate-50">
+                  {filteredItems.length === 0 ? (
+                    <div className="px-3.5 py-3 text-xs text-slate-400 italic font-medium">
+                      Produk tidak ditemukan
+                    </div>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedItemId(item.id);
+                          setItemSearchQuery(item.name);
+                          setIsItemDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3.5 py-2.5 text-xs font-semibold flex items-center justify-between transition-colors duration-150 ${selectedItemId === item.id
+                            ? "bg-red-50 text-red-700 font-bold"
+                            : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                      >
+                        <span>{item.name}</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">
+                          {item.unit}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Price Input */}
@@ -569,11 +661,10 @@ export default function Cashier() {
                 id="pay-cash-btn"
                 type="button"
                 onClick={() => setPaymentMethod("cash")}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
-                  paymentMethod === "cash"
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${paymentMethod === "cash"
                     ? "border-red-500 bg-red-500/5 text-red-600 font-bold shadow-sm shadow-red-500/5"
                     : "border-slate-100 bg-slate-50/50 hover:bg-slate-100/50 hover:border-slate-200 text-slate-600"
-                }`}
+                  }`}
               >
                 <DollarSign className="w-4 h-4 mb-1" />
                 <span className="text-[10px] font-bold tracking-wide uppercase">
@@ -585,11 +676,10 @@ export default function Cashier() {
                 id="pay-transfer-btn"
                 type="button"
                 onClick={() => setPaymentMethod("transfer")}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
-                  paymentMethod === "transfer"
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${paymentMethod === "transfer"
                     ? "border-red-500 bg-red-500/5 text-red-600 font-bold shadow-sm shadow-red-500/5"
                     : "border-slate-100 bg-slate-50/50 hover:bg-slate-100/50 hover:border-slate-200 text-slate-600"
-                }`}
+                  }`}
               >
                 <Landmark className="w-4 h-4 mb-1" />
                 <span className="text-[10px] font-bold tracking-wide uppercase">
@@ -601,11 +691,10 @@ export default function Cashier() {
                 id="pay-debt-btn"
                 type="button"
                 onClick={() => setPaymentMethod("debt")}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
-                  paymentMethod === "debt"
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${paymentMethod === "debt"
                     ? "border-red-500 bg-red-500/5 text-red-600 font-bold shadow-sm shadow-red-500/5"
                     : "border-slate-100 bg-slate-50/50 hover:bg-slate-100/50 hover:border-slate-200 text-slate-600"
-                }`}
+                  }`}
               >
                 <Wallet className="w-4 h-4 mb-1" />
                 <span className="text-[10px] font-bold tracking-wide uppercase">
@@ -704,11 +793,10 @@ export default function Cashier() {
             id="checkout-submit-btn"
             onClick={handleCheckout}
             disabled={cartItems.length === 0}
-            className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs tracking-wider uppercase shadow-md transition duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
-              cartItems.length === 0
+            className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs tracking-wider uppercase shadow-md transition duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${cartItems.length === 0
                 ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
                 : "bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white hover:shadow-lg hover:shadow-red-600/10"
-            }`}
+              }`}
           >
             Selesaikan & Cetak Struk
           </button>
