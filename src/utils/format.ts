@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx';
+
 /**
  * Helper to format numbers into Indonesian Rupiah (Rp. X.XXX.XXX)
  */
@@ -94,52 +96,31 @@ export function downloadCSV(headers: string[], rows: string[][], fileName: strin
 }
 
 /**
- * Convert data to XML spreadsheet format and download as XLSX/XLS (Excel compatible)
+ * Convert data to genuine XLSX format and download
  */
 export function downloadXLSX(headers: string[], rows: string[][], fileName: string) {
-  const htmlContent = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <!--[if gte mso 9]>
-      <xml>
-        <x:ExcelWorkbook>
-          <x:ExcelWorksheets>
-            <x:ExcelWorksheet>
-              <x:Name>Laporan</x:Name>
-              <x:WorksheetOptions>
-                <x:DisplayGridlines/>
-              </x:WorksheetOptions>
-            </x:ExcelWorksheet>
-          </x:ExcelWorksheets>
-        </x:ExcelWorkbook>
-      </xml>
-      <![endif]-->
-      <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
-      <style>
-        table { border-collapse: collapse; }
-        th { background-color: #ef4444; color: #ffffff; font-weight: bold; }
-        td, th { border: 1px solid #cbd5e1; padding: 6px 12px; font-family: sans-serif; font-size: 11px; }
-      </style>
-    </head>
-    <body>
-      <table>
-        <thead>
-          <tr>
-            ${headers.map(h => `<th>${h}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map(row => `
-            <tr>
-              ${row.map(cell => `<td>${cell ?? ''}</td>`).join('')}
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `;
+  try {
+    const wb = XLSX.utils.book_new();
+    const data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan");
 
-  downloadFile(htmlContent, fileName, 'application/vnd.ms-excel;charset=utf-8;');
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Failed to export to XLSX, falling back to CSV", error);
+    // Fallback to CSV with same filename but .csv extension
+    const csvFileName = fileName.replace(/\.xlsx$/i, '.csv');
+    downloadCSV(headers, rows, csvFileName);
+  }
 }
 
