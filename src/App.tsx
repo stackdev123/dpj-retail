@@ -19,27 +19,72 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null);
 
   // Check login session on mount
   useEffect(() => {
     const savedUser = localStorage.getItem('dpj_current_user');
+    const loginTimeStr = localStorage.getItem('dpj_login_time');
+
     if (savedUser) {
-      try {
-        setCurrentUser(JSON.parse(savedUser));
-      } catch (e) {
-        localStorage.removeItem('dpj_current_user');
+      if (loginTimeStr) {
+        const loginTime = Number(loginTimeStr);
+        const eightHours = 8 * 60 * 60 * 1000;
+        if (Date.now() - loginTime > eightHours) {
+          // Session expired
+          localStorage.removeItem('dpj_current_user');
+          localStorage.removeItem('dpj_login_time');
+          setSessionExpiredMessage('Sesi Anda telah berakhir (8 jam). Silakan masuk kembali.');
+          setCurrentUser(null);
+        } else {
+          try {
+            setCurrentUser(JSON.parse(savedUser));
+          } catch (e) {
+            localStorage.removeItem('dpj_current_user');
+            localStorage.removeItem('dpj_login_time');
+          }
+        }
+      } else {
+        // Fallback for legacy session
+        localStorage.setItem('dpj_login_time', Date.now().toString());
+        try {
+          setCurrentUser(JSON.parse(savedUser));
+        } catch (e) {
+          localStorage.removeItem('dpj_current_user');
+        }
       }
     }
     setSessionLoading(false);
   }, []);
 
+  // Update online status heartbeat when currentUser is logged in
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Immediately register online
+    db.updateOnlineStatus(currentUser.id);
+
+    // Set up heartbeat interval
+    const interval = setInterval(() => {
+      db.updateOnlineStatus(currentUser.id);
+    }, 20000); // every 20 seconds
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [currentUser]);
+
   const handleLoginSuccess = (user: AppUser) => {
     setCurrentUser(user);
+    setSessionExpiredMessage(null);
     localStorage.setItem('dpj_current_user', JSON.stringify(user));
+    localStorage.setItem('dpj_login_time', Date.now().toString());
   };
 
   const handleLogout = async () => {
     if (currentUser) {
+      // Mark offline immediately
+      await db.updateOnlineStatus(currentUser.id, true);
       await db.addActivityLog(
         'LOGIN',
         'Sistem',
@@ -48,7 +93,32 @@ export default function App() {
     }
     setCurrentUser(null);
     localStorage.removeItem('dpj_current_user');
+    localStorage.removeItem('dpj_login_time');
   };
+
+  // Active check for session expiration (8 hours)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const checkSessionExpiry = () => {
+      const loginTimeStr = localStorage.getItem('dpj_login_time');
+      if (loginTimeStr) {
+        const loginTime = Number(loginTimeStr);
+        const eightHours = 8 * 60 * 60 * 1000;
+        if (Date.now() - loginTime > eightHours) {
+          // Session expired
+          handleLogout();
+          setSessionExpiredMessage('Sesi Anda telah berakhir (8 jam). Silakan masuk kembali.');
+        }
+      }
+    };
+
+    // Check immediately and then every 10 seconds
+    checkSessionExpiry();
+    const interval = setInterval(checkSessionExpiry, 10000);
+
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -102,7 +172,12 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Login
+        onLoginSuccess={handleLoginSuccess}
+        sessionExpiredMessage={sessionExpiredMessage}
+      />
+    );
   }
 
   return (

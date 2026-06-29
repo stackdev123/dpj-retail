@@ -1,18 +1,36 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { db } from "../utils/db";
 import { AppUser } from "../types";
 import { Landmark, Lock, User, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface LoginProps {
     onLoginSuccess: (user: AppUser) => void;
+    sessionExpiredMessage?: string | null;
 }
 
-export default function Login({ onLoginSuccess }: LoginProps) {
+export default function Login({ onLoginSuccess, sessionExpiredMessage }: LoginProps) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+
+    const usernameRef = useRef<HTMLInputElement>(null);
+    const passwordRef = useRef<HTMLInputElement>(null);
+
+    const handleUsernameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter" || e.key === "ArrowDown") {
+            e.preventDefault();
+            passwordRef.current?.focus();
+        }
+    };
+
+    const handlePasswordKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "ArrowUp") {
+            e.preventDefault();
+            usernameRef.current?.focus();
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -91,6 +109,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 </div>
 
                 {/* Status Messages */}
+                {sessionExpiredMessage && !error && !success && (
+                    <div className="mb-5 flex items-start gap-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5 text-xs text-amber-400 font-bold animate-in fade-in">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                        <span>{sessionExpiredMessage}</span>
+                    </div>
+                )}
+
                 {error && (
                     <div className="mb-5 flex items-start gap-2.5 rounded-xl bg-red-500/10 border border-red-500/20 p-3.5 text-xs text-red-400 font-medium animate-in fade-in">
                         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -115,11 +140,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                             <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4.5 h-4.5" />
                             <input
                                 id="login-username"
+                                ref={usernameRef}
                                 type="text"
                                 disabled={loading || success}
                                 placeholder="Masukkan username"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
+                                onKeyDown={handleUsernameKeyDown}
                                 className="w-full rounded-xl border border-slate-800 bg-slate-950/40 py-3 pl-11 pr-4 text-xs font-bold text-white placeholder-slate-500 focus:border-red-500 focus:outline-none transition-all"
                             />
                         </div>
@@ -133,11 +160,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                             <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4.5 h-4.5" />
                             <input
                                 id="login-password"
+                                ref={passwordRef}
                                 type="password"
                                 disabled={loading || success}
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
+                                onKeyDown={handlePasswordKeyDown}
                                 className="w-full rounded-xl border border-slate-800 bg-slate-950/40 py-3 pl-11 pr-4 text-xs font-bold text-white placeholder-slate-500 focus:border-red-500 focus:outline-none transition-all"
                             />
                         </div>
@@ -152,6 +181,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                         {loading ? "Menghubungkan..." : "Masuk ke Aplikasi"}
                     </button>
                 </form>
+
+
             </div>
         </div>
     );

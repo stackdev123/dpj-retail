@@ -13,7 +13,7 @@ export interface Customer {
   createdAt: string;
 }
 
-export type PaymentMethod = 'cash' | 'transfer' | 'debt';
+export type PaymentMethod = 'cash' | 'transfer' | 'debt' | 'mix';
 
 export interface TransactionItem {
   itemId: string;
@@ -37,6 +37,9 @@ export interface Transaction {
   date: string; // ISO String
   printCount: number; // 0 = not printed yet, 1 = first print, >=2 = reprinted
   notes?: string;
+  // For mixed (cash + transfer) payments only
+  cashAmount?: number;
+  transferAmount?: number;
 }
 
 export interface DebtPayment {
@@ -57,6 +60,9 @@ export interface CustomerDebtSummary {
   totalPaid: number;
   remainingDebt: number;
   lastActive: string;
+  totalPembelian: number;
+  totalTransfer: number;
+  totalCash: number;
 }
 
 export interface PriceMemory {
