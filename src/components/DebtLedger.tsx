@@ -517,6 +517,7 @@ export default function DebtLedger() {
     doc.text(totalDebitBeli > 0 ? formatRupiah(totalDebitBeli) : "-", 55, y);
     doc.text(totalKreditTrf > 0 ? formatRupiah(totalKreditTrf) : "-", 95, y);
     doc.text(totalKreditCash > 0 ? formatRupiah(totalKreditCash) : "-", 135, y);
+<<<<<<< HEAD
 
     const finalBal = openingBalance + totalDebitBeli - totalKreditTrf - totalKreditCash;
     doc.setFont("Helvetica", "bold");
@@ -543,8 +544,42 @@ export default function DebtLedger() {
     doc.setDrawColor(226, 232, 240); // slate-200
     doc.setFillColor(248, 250, 252); // slate-50
     doc.rect(14, y, 182, 33, "FD");
+=======
+>>>>>>> b2f87f5834bf57caa78376db7ab4541c8013973d
+
+    // SOLID BLACK CELL CORNER AS IN THE DISPLAY
+    doc.setFillColor(11, 15, 25); // #0b0f19
+    doc.rect(170, y - 4, 26, 6, "F");
+    doc.setFont("Helvetica", "bold");
+<<<<<<< HEAD
+=======
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text("CLOSED", 183, y, { align: "center" });
+
+    y += 6;
+    // Bottom border line for summary
+    doc.setDrawColor(15, 23, 42);
+    doc.line(14, y - 4, 196, y - 4);
+
+    // ==========================================
+    // 6. PAYMENT INFO & SIGNATURE BLOCKS
+    // ==========================================
+    // Check if we need a new page for payment info + signature
+    if (y > 210) {
+      doc.addPage();
+      y = 20;
+    } else {
+      y += 10;
+    }
+
+    // Styled Bank Info Box
+    doc.setDrawColor(226, 232, 240); // slate-200
+    doc.setFillColor(248, 250, 252); // slate-50
+    doc.rect(14, y, 182, 33, "FD");
 
     doc.setFont("Helvetica", "bold");
+>>>>>>> b2f87f5834bf57caa78376db7ab4541c8013973d
     doc.setFontSize(9.5);
     doc.setTextColor(15, 23, 42);
     doc.text("INFORMASI REKENING PEMBAYARAN", 18, y + 6);
@@ -561,6 +596,7 @@ export default function DebtLedger() {
     doc.text(":  7410888879", 38, y + 18);
     doc.setFont("Helvetica", "bold");
     doc.text("(A/N Panji Paranantias Mulyono)", 70, y + 18);
+<<<<<<< HEAD
 
     doc.setFont("Helvetica", "bold");
     doc.text("• BRI", 18, y + 23);
@@ -830,6 +866,277 @@ export default function DebtLedger() {
     doc.save("Rekapitulasi_Piutang_Pelanggan.pdf");
   };
 
+=======
+
+    doc.setFont("Helvetica", "bold");
+    doc.text("• BRI", 18, y + 23);
+    doc.setFont("Helvetica", "normal");
+    doc.text(":  0075 0100 1986 565", 38, y + 23);
+    doc.setFont("Helvetica", "bold");
+    doc.text("(A/N Panji Paranantias Mulyono)", 70, y + 23);
+
+    doc.setFont("Helvetica", "bold");
+    doc.text("• MANDIRI", 18, y + 28);
+    doc.setFont("Helvetica", "normal");
+    doc.text(":  173 0081 1888 1", 38, y + 28);
+    doc.setFont("Helvetica", "bold");
+    doc.text("(A/N Panji Paranantias Mulyono)", 70, y + 28);
+
+    // Signature Area
+    y += 44;
+    if (y > 275) {
+      doc.addPage();
+      y = 25;
+    }
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Purwakarta, " + formatLedgerDate(new Date().toISOString()), 150, y, { align: "center" });
+
+    y += 5;
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("CV DPJ BERKAH UNGGAS", 150, y, { align: "center" });
+
+    y += 18;
+    doc.text("( _____________________ )", 150, y, { align: "center" });
+
+    // Save PDF
+    doc.save(`Ledger_${selectedCustomer.name.replace(/\s+/g, "_")}.pdf`);
+  };
+
+  // Export to PDF for Rekap (all customers)
+  const handleDownloadRekapPDF = () => {
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    // ==========================================
+    // 1. KOP SURAT (FORMAL INDONESIAN HEADER WITH LOGO)
+    // ==========================================
+    if (logoBase64) {
+      doc.addImage(logoBase64, "PNG", 14, 10, logoDimensions.width, logoDimensions.height);
+    }
+
+    const textX = logoBase64 ? 14 + logoDimensions.width + 3 : 14;
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42); // slate-900
+    doc.text("CV DPJ BERKAH UNGGAS", textX, 14);
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105); // slate-600
+    doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan, Kec. Bojong, Kab. Purwakarta", textX, 19);
+    doc.text("Telp/Hp. +62 877-6908-0999 | Email: cvdpjberkahunggas@gmail.com", textX, 23);
+
+    // Double-line Kop Surat border
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.8);
+    doc.line(14, 28, 196, 28);
+    doc.setLineWidth(0.25);
+    doc.line(14, 29.5, 196, 29.5);
+
+    // ==========================================
+    // 2. DOCUMENT TITLE & METADATA
+    // ==========================================
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text("LAPORAN REKAPITULASI PIUTANG PELANGGAN", 105, 38, { align: "center" });
+
+    // Metadata details
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Total Pelanggan : ${filteredSummaries.length} Orang`, 14, 44);
+    doc.text(`Dicetak  : ${formatLedgerDate(new Date().toISOString())}`, 14, 49);
+
+    doc.text(`Total Pembelian : ${formatRupiah(totalRekapPembelian)}`, 196, 44, { align: "right" });
+    doc.text(`Total Transfer  : ${formatRupiah(totalRekapTransfer)}`, 196, 49, { align: "right" });
+    doc.text(`Total Cash      : ${formatRupiah(totalRekapCash)}`, 196, 54, { align: "right" });
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Sisa Piutang    : ${formatRupiah(totalRekapRemaining)}`, 196, 59, { align: "right" });
+
+    // Divider before table at Y=63
+    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.setLineWidth(0.2);
+    doc.line(14, 63, 196, 63);
+
+    // ==========================================
+    // 3. TABLE HEADERS WITH DISPLAY SHADING
+    // ==========================================
+    doc.setFillColor(248, 250, 252); // slate-50
+    doc.rect(14, 63, 182, 8, "F");
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text("NAMA PELANGGAN", 16, 68);
+    doc.text("TOTAL PEMBELIAN", 98, 68, { align: "right" });
+    doc.text("TOTAL TRANSFER", 130, 68, { align: "right" });
+    doc.text("TOTAL CASH", 162, 68, { align: "right" });
+    doc.text("SISA PIUTANG", 194, 68, { align: "right" });
+
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.4);
+    doc.line(14, 71, 196, 71);
+
+    let y = 77;
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59); // slate-800
+
+    // ==========================================
+    // 4. TABLE ROWS
+    // ==========================================
+    filteredSummaries.forEach((summary, idx) => {
+      // Draw light gray line between rows
+      if (idx > 0) {
+        doc.setDrawColor(241, 245, 249);
+        doc.setLineWidth(0.15);
+        doc.line(14, y - 4, 196, y - 4);
+      }
+
+      // 1. PELANGGAN (Name & ID exactly like display)
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(summary.customerName.toUpperCase(), 16, y);
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`ID: ${summary.customerId}`, 16, y + 3.5);
+
+      // 2. TOTAL PEMBELIAN
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text(summary.totalPembelian > 0 ? formatRupiah(summary.totalPembelian) : "-", 98, y + 1, { align: "right" });
+
+      // 3. TOTAL TRANSFER (blue)
+      doc.setFont("Helvetica", "normal");
+      doc.setTextColor(29, 78, 216); // blue-700
+      doc.text(summary.totalTransfer > 0 ? formatRupiah(summary.totalTransfer) : "-", 130, y + 1, { align: "right" });
+
+      // 4. TOTAL CASH (green)
+      doc.setTextColor(4, 120, 87); // emerald-700
+      doc.text(summary.totalCash > 0 ? formatRupiah(summary.totalCash) : "-", 162, y + 1, { align: "right" });
+
+      // 5. SISA PIUTANG (indigo)
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(67, 56, 202); // indigo-700
+      doc.text(summary.remainingDebt > 0 ? formatRupiah(summary.remainingDebt) : "-", 194, y + 1, { align: "right" });
+
+      y += 8;
+
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+    });
+
+    // ==========================================
+    // 5. SUMMARY ROW (REKAPITULASI)
+    // ==========================================
+    if (y > 265) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.4);
+    doc.line(14, y - 4, 196, y - 4);
+
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("TOTAL KESELURUHAN", 16, y);
+    doc.text(formatRupiah(totalRekapPembelian), 98, y, { align: "right" });
+    doc.setTextColor(29, 78, 216);
+    doc.text(formatRupiah(totalRekapTransfer), 130, y, { align: "right" });
+    doc.setTextColor(4, 120, 87);
+    doc.text(formatRupiah(totalRekapCash), 162, y, { align: "right" });
+    doc.setTextColor(67, 56, 202);
+    doc.text(formatRupiah(totalRekapRemaining), 194, y, { align: "right" });
+
+    y += 6;
+    doc.line(14, y - 4, 196, y - 4);
+
+    // ==========================================
+    // 6. PAYMENT INFO & SIGNATURE BLOCKS
+    // ==========================================
+    if (y > 210) {
+      doc.addPage();
+      y = 20;
+    } else {
+      y += 10;
+    }
+
+    // Bank Info
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.rect(14, y, 182, 33, "FD");
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text("INFORMASI REKENING PEMBAYARAN", 18, y + 6);
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Mohon transfer pembayaran / cicilan ke salah satu rekening resmi CV DPJ Berkah Unggas berikut:", 18, y + 11);
+
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("• BCA", 18, y + 18);
+    doc.setFont("Helvetica", "normal");
+    doc.text(":  7410888879", 38, y + 18);
+    doc.setFont("Helvetica", "bold");
+    doc.text("(A/N Panji Paranantias Mulyono)", 70, y + 18);
+
+    doc.setFont("Helvetica", "bold");
+    doc.text("• BRI", 18, y + 23);
+    doc.setFont("Helvetica", "normal");
+    doc.text(":  0075 0100 1986 565", 38, y + 23);
+    doc.setFont("Helvetica", "bold");
+    doc.text("(A/N Panji Paranantias Mulyono)", 70, y + 23);
+
+    doc.setFont("Helvetica", "bold");
+    doc.text("• MANDIRI", 18, y + 28);
+    doc.setFont("Helvetica", "normal");
+    doc.text(":  173 0081 1888 1", 38, y + 28);
+    doc.setFont("Helvetica", "bold");
+    doc.text("(A/N Panji Paranantias Mulyono)", 70, y + 28);
+
+    // Signature Area
+    y += 44;
+    if (y > 275) {
+      doc.addPage();
+      y = 25;
+    }
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Purwakarta, " + formatLedgerDate(new Date().toISOString()), 150, y, { align: "center" });
+
+    y += 5;
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("CV DPJ BERKAH UNGGAS", 150, y, { align: "center" });
+
+    y += 18;
+    doc.text("( _____________________ )", 150, y, { align: "center" });
+
+    doc.save("Rekapitulasi_Piutang_Pelanggan.pdf");
+  };
+
+>>>>>>> b2f87f5834bf57caa78376db7ab4541c8013973d
   // Export to Excel (XLSX)
   const handleDownloadXLSX = () => {
     if (!selectedCustomer) return;
@@ -1274,10 +1581,18 @@ export default function DebtLedger() {
                         {totalKreditCash > 0 ? formatRupiah(totalKreditCash) : "-"}
                       </td>
 
+<<<<<<< HEAD
                       <td className="py-4 px-3 text-center text-xs sm:text-sm text-slate-900 font-mono">
                         {openingBalance + totalDebitBeli - totalKreditTrf - totalKreditCash === 0
                           ? "-"
                           : formatRupiah(openingBalance + totalDebitBeli - totalKreditTrf - totalKreditCash)}
+=======
+                      {/* SOLID BLACK CELL CORNER AS IN THE USER'S SCREENSHOT */}
+                      <td className="bg-[#0b0f19] py-4 px-3 text-center">
+                        <span className="text-white/20 text-[9px] font-black tracking-widest uppercase">
+                          CLOSED
+                        </span>
+>>>>>>> b2f87f5834bf57caa78376db7ab4541c8013973d
                       </td>
                     </tr>
                   </tbody>
@@ -1361,6 +1676,7 @@ export default function DebtLedger() {
                     {filteredSummaries.map((summary) => (
                       <tr key={summary.customerId} className="hover:bg-slate-50/50 transition border-b border-slate-150">
                         <td className="py-4 px-4 border-r border-slate-200">
+<<<<<<< HEAD
                           <div className="font-black text-slate-900 tracking-wide text-[11px]">{summary.customerName.toUpperCase()}</div>
                           <div className="text-[8px] text-slate-400 font-bold">ID: {summary.customerId}</div>
                         </td>
@@ -1374,6 +1690,21 @@ export default function DebtLedger() {
                           {summary.totalCash > 0 ? formatRupiah(summary.totalCash) : "-"}
                         </td>
                         <td className="py-4 px-4 text-center font-mono font-black text-indigo-600 bg-indigo-50/10 text-[11px] border-r border-slate-200">
+=======
+                          <div className="font-black text-slate-900 tracking-wide text-[13px]">{summary.customerName.toUpperCase()}</div>
+                          <div className="text-[9px] text-slate-400 font-bold">ID: {summary.customerId}</div>
+                        </td>
+                        <td className="py-4 px-4 text-center font-mono font-extrabold text-slate-900 text-[13px] border-r border-slate-200">
+                          {summary.totalPembelian > 0 ? formatRupiah(summary.totalPembelian) : "-"}
+                        </td>
+                        <td className="py-4 px-4 text-center font-mono font-bold text-blue-600 text-[13px] border-r border-slate-200">
+                          {summary.totalTransfer > 0 ? formatRupiah(summary.totalTransfer) : "-"}
+                        </td>
+                        <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600 text-[13px] border-r border-slate-200">
+                          {summary.totalCash > 0 ? formatRupiah(summary.totalCash) : "-"}
+                        </td>
+                        <td className="py-4 px-4 text-center font-mono font-black text-indigo-600 bg-indigo-50/10 text-[13px] border-r border-slate-200">
+>>>>>>> b2f87f5834bf57caa78376db7ab4541c8013973d
                           {summary.remainingDebt > 0 ? formatRupiah(summary.remainingDebt) : "-"}
                         </td>
                         <td className="py-4 px-4 text-center">
@@ -1393,6 +1724,7 @@ export default function DebtLedger() {
 
                     {/* GRAND TOTAL ROW EXACTLY MATCHING FOOTER STYLE */}
                     <tr className="bg-slate-50 border-t-2 border-slate-950 font-black">
+<<<<<<< HEAD
                       <td className="py-4 px-4 text-[10px] font-black uppercase tracking-wider border-r border-slate-200">
                         TOTAL KESELURUHAN
                       </td>
@@ -1406,6 +1738,21 @@ export default function DebtLedger() {
                         {formatRupiah(totalRekapCash)}
                       </td>
                       <td className="py-4 px-4 text-center font-mono font-black text-indigo-600 bg-indigo-50/30 text-[11px] border-r border-slate-200">
+=======
+                      <td className="py-4 px-4 text-xs font-black uppercase tracking-wider border-r border-slate-200">
+                        TOTAL KESELURUHAN
+                      </td>
+                      <td className="py-4 px-4 text-center font-mono font-extrabold text-slate-900 text-[13px] border-r border-slate-200">
+                        {formatRupiah(totalRekapPembelian)}
+                      </td>
+                      <td className="py-4 px-4 text-center font-mono font-bold text-blue-600 text-[13px] border-r border-slate-200">
+                        {formatRupiah(totalRekapTransfer)}
+                      </td>
+                      <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600 text-[13px] border-r border-slate-200">
+                        {formatRupiah(totalRekapCash)}
+                      </td>
+                      <td className="py-4 px-4 text-center font-mono font-black text-indigo-600 bg-indigo-50/30 text-[13px] border-r border-slate-200">
+>>>>>>> b2f87f5834bf57caa78376db7ab4541c8013973d
                         {formatRupiah(totalRekapRemaining)}
                       </td>
                       <td className="bg-[#0b0f19] py-4 px-4 text-center">

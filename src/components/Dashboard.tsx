@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [customers, setCustomers] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
 
   const [dateFilter, setDateFilter] = useState<
     "today" | "week" | "month" | "all" | "custom"
@@ -38,13 +39,27 @@ export default function Dashboard() {
   const [endDate, setEndDate] = useState("");
 
   const loadData = async () => {
-    setTransactions(await db.getTransactions());
-    setDebtPayments(await db.getDebtPayments());
-    setCustomers(await db.getCustomers());
+    const [txs, payments, custs, online] = await Promise.all([
+      db.getTransactions(),
+      db.getDebtPayments(),
+      db.getCustomers(),
+      db.getOnlineUsers(),
+    ]);
+    setTransactions(txs);
+    setDebtPayments(payments);
+    setCustomers(custs);
+    setOnlineUsers(online);
   };
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      setOnlineUsers(await db.getOnlineUsers());
+    }, 10000); // 10 seconds refresh
+    return () => clearInterval(interval);
   }, []);
 
   const getFilteredDates = () => {
@@ -105,6 +120,27 @@ export default function Dashboard() {
   );
 
   const txCount = filteredTransactions.length;
+
+  // Real-time Overall / Today's Metrics for Admin Highlight Cards
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const todayTransactions = transactions.filter((tx) => {
+    const txTime = new Date(tx.date).getTime();
+    return txTime >= todayStart.getTime() && txTime <= todayEnd.getTime();
+  });
+
+  const totalSalesToday = todayTransactions.reduce(
+    (sum, tx) => sum + tx.totalAmount,
+    0,
+  );
+
+  const activeRemainingDebt = transactions.reduce(
+    (sum, tx) => sum + tx.remainingDebt,
+    0,
+  );
 
   // Calculate daily data for chart
   const dailyDataMap = new Map();
@@ -222,6 +258,127 @@ export default function Dashboard() {
       </div>
 
       <div className="space-y-6">
+        {/* Ringkasan Instan Admin */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Total Penjualan Hari Ini */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[4px] bg-gradient-to-r from-emerald-500 to-teal-500 rounded-t-2xl"></div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
+                  <Calendar className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
+                    Total Penjualan Hari Ini
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">
+                    Real-time per hari ini: {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg uppercase tracking-wide">
+                Hari Ini
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                {formatRupiah(totalSalesToday)}
+              </span>
+              <span className="text-xs text-slate-500 font-semibold">
+                ({todayTransactions.length} Nota)
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Sisa Piutang Aktif */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[4px] bg-gradient-to-r from-amber-500 to-orange-500 rounded-t-2xl"></div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-amber-50 text-amber-600 p-2 rounded-xl">
+                  <CreditCard className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
+                    Sisa Piutang Aktif
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">
+                    Total akumulasi piutang yang belum dilunasi
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-extrabold bg-amber-50 text-amber-700 px-2 py-1 rounded-lg uppercase tracking-wide">
+                Akumulasi
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                {formatRupiah(activeRemainingDebt)}
+              </span>
+              <span className="text-xs text-slate-500 font-semibold">
+                (Sisa Tagihan)
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Pengguna Sedang Online */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[4px] bg-gradient-to-r from-red-500 to-orange-500 rounded-t-2xl"></div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-red-50 text-red-600 p-2 rounded-xl">
+                  <Users className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
+                    Staf Sedang Online
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">
+                    Sesi pengguna yang sedang aktif
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                </span>
+                Aktif ({onlineUsers.length})
+              </div>
+            </div>
+            <div className="mt-2 space-y-2 max-h-[85px] overflow-y-auto pr-1">
+              {onlineUsers.map((user) => (
+                <div key={user.id} className="flex items-center justify-between bg-slate-50/50 p-1.5 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-6 h-6 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-[10px] text-slate-700 shrink-0 uppercase">
+                      {user.fullname.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-slate-800 truncate leading-none">
+                        {user.fullname}
+                      </p>
+                      <p className="text-[8px] text-slate-400 font-bold truncate mt-0.5">
+                        @{user.username}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end shrink-0 gap-0.5">
+                    <span className={`text-[8px] font-black uppercase px-1 py-0.5 rounded-md leading-none ${user.role === 'superadmin'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200/40'
+                        : user.role === 'admin'
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200/40'
+                          : 'bg-teal-100 text-teal-800 border border-teal-200/40'
+                      }`}>
+                      {user.role}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden">

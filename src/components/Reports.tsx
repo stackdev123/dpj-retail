@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Transaction, Customer, CustomerDebtSummary } from "../types";
 import { db } from "../utils/db";
-import { formatRupiah, formatDate, downloadCSV } from "../utils/format";
+import { formatRupiah, formatDate, downloadCSV, downloadXLSX } from "../utils/format";
 import ReceiptModal from "./ReceiptModal";
 import EditTransactionModal from "./EditTransactionModal";
 import {
@@ -42,9 +42,14 @@ export default function Reports() {
   const [confirmDeleteTx, setConfirmDeleteTx] = useState<Transaction | null>(null);
 
   const loadData = async () => {
-    setTransactions(await db.getTransactions());
-    setCustomers(await db.getCustomers());
-    setDebtSummaries(await db.getCustomerDebtSummaries());
+    const [txs, custs, summaries] = await Promise.all([
+      db.getTransactions(),
+      db.getCustomers(),
+      db.getCustomerDebtSummaries(),
+    ]);
+    setTransactions(txs);
+    setCustomers(custs);
+    setDebtSummaries(summaries);
   };
 
   const handleDeleteTx = async (txId: string) => {
@@ -188,8 +193,8 @@ export default function Reports() {
     );
   })();
 
-  // Download All Sales Report CSV
-  const handleDownloadAllReportCSV = () => {
+  // Download All Sales Report XLSX
+  const handleDownloadAllReportXLSX = () => {
     const headers = [
       "No. Nota",
       "Tanggal",
@@ -214,15 +219,15 @@ export default function Reports() {
       tx.notes || "",
     ]);
 
-    downloadCSV(
+    downloadXLSX(
       headers,
       rows,
-      `Laporan_Penjualan_DPJ_Berkah_${new Date().toISOString().slice(0, 10)}.csv`,
+      `Laporan_Penjualan_DPJ_Berkah_${new Date().toISOString().slice(0, 10)}.xlsx`,
     );
   };
 
-  // Download Customer Report CSV
-  const handleDownloadCustomerReportCSV = () => {
+  // Download Customer Report XLSX
+  const handleDownloadCustomerReportXLSX = () => {
     const headers = [
       "ID Pelanggan",
       "Nama Pelanggan",
@@ -243,15 +248,15 @@ export default function Reports() {
       formatDate(report.lastActive),
     ]);
 
-    downloadCSV(
+    downloadXLSX(
       headers,
       rows,
-      `Laporan_Pelanggan_DPJ_Berkah_${new Date().toISOString().slice(0, 10)}.csv`,
+      `Laporan_Pelanggan_DPJ_Berkah_${new Date().toISOString().slice(0, 10)}.xlsx`,
     );
   };
 
-  // Download Daily Items Report CSV
-  const handleDownloadDailyItemsCSV = () => {
+  // Download Daily Items Report XLSX
+  const handleDownloadDailyItemsXLSX = () => {
     const headers = [
       "Tanggal",
       "Nama Item",
@@ -274,10 +279,10 @@ export default function Reports() {
       });
     });
 
-    downloadCSV(
+    downloadXLSX(
       headers,
       rows,
-      `Laporan_Item_Harian_DPJ_Berkah_${new Date().toISOString().slice(0, 10)}.csv`,
+      `Laporan_Item_Harian_DPJ_Berkah_${new Date().toISOString().slice(0, 10)}.xlsx`,
     );
   };
 
@@ -407,7 +412,7 @@ export default function Reports() {
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
           {/* Query search (invoice or customer) */}
-          <div className="md:col-span-4 relative">
+          <div className="md:col-span-3 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
             <input
               id="report-search-input"
@@ -419,12 +424,12 @@ export default function Reports() {
               }
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              className="w-[144.74px] rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-4 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-4 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
             />
           </div>
 
           {/* Payment Method Filter (only for 'all' tab) */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-2">
             <select
               id="report-payment-method-select"
               disabled={reportTab === "customer"}
@@ -432,15 +437,16 @@ export default function Reports() {
               onChange={(e) => setFilterMethod(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none disabled:opacity-50 transition-all duration-200"
             >
-              <option value="all">Semua Metode Bayar</option>
+              <option value="all">Semua Metode</option>
               <option value="cash">Cash (Tunai)</option>
               <option value="transfer">Transfer Bank</option>
+              <option value="mix">Campuran (Mix)</option>
               <option value="debt">Utang (Tempo)</option>
             </select>
           </div>
 
           {/* Date range inputs */}
-          <div className="md:col-span-3 flex items-center gap-2">
+          <div className="md:col-span-4 flex items-center gap-2">
             <div className="relative flex-1">
               <input
                 id="report-start-date"
@@ -465,7 +471,7 @@ export default function Reports() {
           </div>
 
           {/* Download & Refresh Action Buttons */}
-          <div className="md:col-span-2 flex gap-2">
+          <div className="md:col-span-3 flex gap-2">
             <button
               onClick={handleRefresh}
               className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition-all duration-200 cursor-pointer"
@@ -474,17 +480,17 @@ export default function Reports() {
               <RefreshCw className="w-4 h-4" />
             </button>
             <button
-              id="download-csv-btn"
+              id="download-xlsx-btn"
               onClick={
                 reportTab === "all"
-                  ? handleDownloadAllReportCSV
+                  ? handleDownloadAllReportXLSX
                   : reportTab === "customer"
-                    ? handleDownloadCustomerReportCSV
-                    : handleDownloadDailyItemsCSV
+                    ? handleDownloadCustomerReportXLSX
+                    : handleDownloadDailyItemsXLSX
               }
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white font-bold text-xs py-2.5 px-3 shadow-md shadow-red-600/10 transition-all duration-200 cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white font-bold text-xs py-2.5 px-3 shadow-md shadow-red-600/10 transition-all duration-200 cursor-pointer whitespace-nowrap"
             >
-              <Download className="w-3.5 h-3.5" /> Download CSV
+              <Download className="w-3.5 h-3.5" /> Download XLSX
             </button>
           </div>
         </div>
@@ -562,12 +568,16 @@ export default function Reports() {
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                               : tx.paymentMethod === "transfer"
                                 ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : "bg-amber-50 text-amber-700 border-amber-200"
+                                : tx.paymentMethod === "mix"
+                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
                             }`}
                         >
                           {tx.paymentMethod === "debt"
                             ? "Utang"
-                            : tx.paymentMethod}
+                            : tx.paymentMethod === "mix"
+                              ? "Campuran (Mix)"
+                              : tx.paymentMethod}
                         </span>
                       </td>
                       <td className="py-3.5 px-5 text-right font-bold text-slate-900 font-mono">
