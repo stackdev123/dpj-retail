@@ -9,17 +9,101 @@ import UserManager from './components/UserManager';
 import Login from './components/Login';
 import { AppUser } from './types';
 import { db } from './utils/db';
-import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw, Crown } from 'lucide-react';
+import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw, Crown, ChevronDown } from 'lucide-react';
 
 type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'database' | 'activity_logs' | 'users_management';
 
+function OnlineUsersDropdown({ onlineUsers }: { onlineUsers: any[] }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.online-users-dropdown')) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative online-users-dropdown">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 px-2.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition shadow-sm cursor-pointer md:bg-emerald-50 md:hover:bg-emerald-100 md:border-emerald-200 md:text-emerald-700 md:px-3.5 md:py-1.5 md:text-xs"
+      >
+        <span className="relative flex h-1.5 w-1.5 md:h-2 md:w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5 md:h-2 md:w-2 bg-emerald-500"></span>
+        </span>
+        <Users className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-400 md:text-emerald-600" />
+        <span className="hidden xs:inline">Staf Aktif </span>
+        <span>({onlineUsers.length})</span>
+        <ChevronDown className="w-2.5 h-2.5 md:w-3 md:h-3 opacity-60" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-64 bg-[#0b0f19] text-white rounded-2xl p-4 shadow-xl border border-slate-800 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between mb-2.5 border-b border-slate-800/60 pb-2">
+            <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Staf Sedang Aktif</h4>
+            <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">
+              Online ({onlineUsers.length})
+            </span>
+          </div>
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            {onlineUsers.length === 0 ? (
+              <p className="text-[10px] text-slate-500 py-2">Tidak ada staf lain yang online.</p>
+            ) : (
+              onlineUsers.map((user) => (
+                <div key={user.id} className="flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-slate-800/30">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-[10px] text-slate-300 shrink-0 uppercase">
+                      {(user.fullname || 'U').charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-slate-200 truncate leading-none">
+                        {user.fullname}
+                      </p>
+                      <p className="text-[8px] text-slate-400 font-bold truncate mt-0.5">
+                        @{user.username}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded leading-none shrink-0 ${user.role === 'superadmin'
+                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                      : user.role === 'admin'
+                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                        : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                    }`}>
+                    {user.role}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
-  const [activeMenu, setActiveMenu] = useState<MenuItem>('dashboard');
+  const [activeMenu, setActiveMenu] = useState<MenuItem>(() => {
+    const savedMenu = localStorage.getItem('dpj_active_menu');
+    return (savedMenu as MenuItem) || 'dashboard';
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null);
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+
+  // Persist activeMenu to localStorage when changed
+  useEffect(() => {
+    localStorage.setItem('dpj_active_menu', activeMenu);
+  }, [activeMenu]);
 
   // Check login session on mount
   useEffect(() => {
@@ -72,6 +156,22 @@ export default function App() {
     return () => {
       clearInterval(interval);
     };
+  }, [currentUser]);
+
+  // Periodic polling of online users to keep the indicator state current
+  useEffect(() => {
+    if (!currentUser) return;
+    const fetchOnline = async () => {
+      try {
+        const online = await db.getOnlineUsers();
+        setOnlineUsers(online);
+      } catch (e) {
+        console.error("Error fetching online users:", e);
+      }
+    };
+    fetchOnline();
+    const interval = setInterval(fetchOnline, 10000); // 10 seconds
+    return () => clearInterval(interval);
   }, [currentUser]);
 
   const handleLoginSuccess = (user: AppUser) => {
@@ -279,6 +379,9 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Online Users Pill inside mobile header */}
+          <OnlineUsersDropdown onlineUsers={onlineUsers} />
+
           <div className="hidden sm:flex flex-col items-end text-right mr-2">
             <span className="text-[10px] font-bold text-slate-300 leading-none">{currentUser?.fullname}</span>
             <span className="text-[8px] text-red-500 font-extrabold uppercase mt-0.5">{currentUser?.role.toUpperCase()}</span>
@@ -355,8 +458,31 @@ export default function App() {
       )}
 
       {/* 3. MAIN WORKSPACE */}
-      <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        <div className="bg-white rounded-[28px] border border-slate-200/50 p-5 sm:p-6 md:p-8 shadow-xl shadow-slate-100/80 min-h-[calc(100vh-140px)] md:min-h-[calc(100vh-64px)] backdrop-blur-md bg-white/95">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full flex flex-col gap-4">
+
+        {/* Top Header Workspace (Desktop/Tablet) */}
+        <div className="hidden md:flex justify-between items-center bg-transparent px-2 py-1 shrink-0">
+          <div>
+            <h2 className="text-xl font-extrabold text-slate-800 tracking-tight capitalize leading-none">
+              {activeMenu === 'dashboard' ? 'Overview Dashboard'
+                : activeMenu === 'cashier' ? 'Kasir Kas Retail'
+                  : activeMenu === 'ledger' ? 'Buku Piutang / Ledger'
+                    : activeMenu === 'reports' ? 'Laporan Penjualan'
+                      : activeMenu === 'database' ? 'Database Master'
+                        : activeMenu === 'activity_logs' ? 'Log Aktivitas Sistem'
+                          : 'Kelola Pengguna Sistem'}
+            </h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1.5">
+              Sistem Informasi Retail CV DPJ Berkah
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <OnlineUsersDropdown onlineUsers={onlineUsers} />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-[28px] border border-slate-200/50 p-5 sm:p-6 md:p-8 shadow-xl shadow-slate-100/80 min-h-[calc(100vh-180px)] md:min-h-[calc(100vh-140px)] backdrop-blur-md bg-white/95">
           {renderActiveComponent()}
         </div>
       </main>

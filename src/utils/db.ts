@@ -1280,25 +1280,6 @@ export const db = {
       return diffMs < 2 * 60 * 1000;
     });
 
-    // Simulation for aesthetic liveliness
-    if (onlineUsers.length === 1) {
-      const currentUser = onlineUsers[0];
-      const allUsers = await this.getUsers();
-      const otherUsers = allUsers.filter((u) => u.id !== currentUser.id);
-
-      if (otherUsers.length > 0) {
-        const simUser = otherUsers[0];
-        onlineUsers.push({
-          id: simUser.id,
-          username: simUser.username,
-          fullname: simUser.fullname,
-          role: simUser.role,
-          lastActive: new Date(now.getTime() - 45 * 1000).toISOString(),
-          isSimulated: true,
-        });
-      }
-    }
-
     return onlineUsers;
   },
 };
