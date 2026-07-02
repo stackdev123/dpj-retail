@@ -482,7 +482,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="bg-white rounded-[28px] border border-slate-200/50 p-5 sm:p-6 md:p-8 shadow-xl shadow-slate-100/80 min-h-[calc(100vh-180px)] md:min-h-[calc(100vh-140px)] backdrop-blur-md bg-white/95">
+        <div className="bg-white rounded-[28px] border border-slate-200/50 p-5 sm:p-6 md:p-8 shadow-xl shadow-slate-100/80 min-h-[calc(100vh-180px)] md:min-h-[calc(100vh-140px)]">
           {renderActiveComponent()}
         </div>
       </main>

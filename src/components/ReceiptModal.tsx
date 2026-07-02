@@ -521,320 +521,322 @@ export default function ReceiptModal({
   return (
     <div
       id="receipt-modal-container"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-955/40 backdrop-blur-sm p-4"
     >
-      <div
-        className="w-full max-w-md rounded-2xl bg-white p-4 sm:p-5 shadow-2xl relative border-t-8 border-slate-900 animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
-        style={{ width: "403.2px" }}
-      >
-        {/* Header Options */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3 shrink-0">
-          <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-tight">
-            <CopyCheck className="text-slate-900 w-4 h-4" /> Detail Struk Belanja
-          </h3>
-          <button
-            id="close-receipt-btn"
-            onClick={onClose}
-            className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="flex min-h-full items-center justify-center">
+        <div
+          className="w-full max-w-md rounded-2xl bg-white p-4 sm:p-5 shadow-2xl relative border-t-8 border-slate-900 animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh] my-8"
+          style={{ width: "403.2px" }}
+        >
+          {/* Header Options */}
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3 shrink-0">
+            <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-tight">
+              <CopyCheck className="text-slate-900 w-4 h-4" /> Detail Struk Belanja
+            </h3>
+            <button
+              id="close-receipt-btn"
+              onClick={onClose}
+              className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-        {/* Receipt Container (Classic paper slip design) */}
-        <div className="bg-white border border-slate-300 rounded-xl p-4 mb-4 font-mono text-[10px] sm:text-xs text-slate-900 flex-1 overflow-y-auto">
-          <div ref={receiptRef} className="receipt-paper">
-            {/* DUPLICATE BANNER (Only visible if printed before) */}
-            {isDuplicate && (
-              <div className="duplicate-banner border border-dashed border-slate-950 text-slate-950 p-3 text-center font-black text-xs mb-4 rounded-xl tracking-widest">
-                *** DUPLIKAT ***
-              </div>
-            )}
-
-            {/* Business Header */}
-            <div className="text-center mb-4">
-              <h4 className="text-sm font-black text-slate-950 tracking-tight uppercase">
-                CV DPJ Berkah Unggas
-              </h4>
-              <p className="text-[8px] text-slate-400 font-semibold mt-1 leading-normal max-w-[280px] mx-auto normal-case font-sans">
-                Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan
-                <br /> Kec. Bojong Kab. Purwakarta
-                <br />
-                Telp/Hp. +62 877-6908-0999
-              </p>
-              <div className="border-t border-dashed border-slate-300 my-3"></div>
-            </div>
-
-            {/* Metadata */}
-            <div className="space-y-1 mb-4 text-[11px] font-bold">
-              <div className="flex justify-between">
-                <span className="text-slate-400">No. Nota:</span>
-                <span className="text-slate-900">
-                  {transaction.invoiceNumber}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Tanggal:</span>
-                <span className="text-slate-800">
-                  {formatDate(transaction.date)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Pelanggan:</span>
-                <span className="text-slate-900">
-                  {transaction.customerName}
-                </span>
-              </div>
-            </div>
-
-            <div className="border-t border-dashed border-slate-300 my-3"></div>
-
-            {/* Items Table */}
-            <table className="w-full mb-4 text-[11px]">
-              <thead>
-                <tr className="border-b border-dashed border-slate-300 text-slate-400 text-[10px] font-bold">
-                  <th className="text-left pb-1 uppercase tracking-wider font-bold">
-                    Item / Deskripsi
-                  </th>
-                  <th className="text-right pb-1 uppercase tracking-wider font-bold">
-                    Subtotal
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dashed divide-slate-150">
-                {transaction.items.map((item, index) => (
-                  <tr key={index} className="align-top font-bold">
-                    <td className="py-2 pr-2">
-                      <div className="text-slate-900 font-black">
-                        {item.name}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-bold mt-0.5">
-                        {item.quantity} {item.unit} x {formatRupiah(item.price)}
-                      </div>
-                    </td>
-                    <td className="py-2 text-right text-slate-900">
-                      {formatRupiah(item.subtotal)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="border-t border-dashed border-slate-300 my-3"></div>
-
-            {/* Calculations & Payment summary */}
-            <div className="space-y-1.5 text-[11px] font-bold">
-              <div className="flex justify-between text-xs font-black text-slate-950 pt-1">
-                <span>TOTAL BELANJA:</span>
-                <span className="text-slate-950 text-sm font-black">
-                  {formatRupiah(transaction.totalAmount)}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Metode Pembayaran:</span>
-                <span className="uppercase text-slate-900 font-bold">
-                  {transaction.paymentMethod === "debt"
-                    ? "Utang"
-                    : transaction.paymentMethod === "mix"
-                      ? "Campuran (Mix)"
-                      : transaction.paymentMethod}
-                </span>
-              </div>
-              {transaction.paymentMethod === "mix" && (
-                <>
-                  <div className="flex justify-between text-slate-500 pl-4">
-                    <span>- Cash / Tunai:</span>
-                    <span className="text-slate-800">{formatRupiah(transaction.cashAmount || 0)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500 pl-4">
-                    <span>- Transfer:</span>
-                    <span className="text-slate-800">{formatRupiah(transaction.transferAmount || 0)}</span>
-                  </div>
-                </>
+          {/* Receipt Container (Classic paper slip design) */}
+          <div className="bg-white border border-slate-300 rounded-xl p-4 mb-4 font-mono text-[10px] sm:text-xs text-slate-900 flex-1 overflow-y-auto">
+            <div ref={receiptRef} className="receipt-paper">
+              {/* DUPLICATE BANNER (Only visible if printed before) */}
+              {isDuplicate && (
+                <div className="duplicate-banner border border-dashed border-slate-950 text-slate-950 p-3 text-center font-black text-xs mb-4 rounded-xl tracking-widest">
+                  *** DUPLIKAT ***
+                </div>
               )}
-              <div className="flex justify-between text-slate-600">
-                <span>Jumlah Dibayar:</span>
-                <span className="text-slate-900">
-                  {formatRupiah(transaction.amountPaid)}
-                </span>
+
+              {/* Business Header */}
+              <div className="text-center mb-4">
+                <h4 className="text-sm font-black text-slate-950 tracking-tight uppercase">
+                  CV DPJ Berkah Unggas
+                </h4>
+                <p className="text-[8px] text-slate-400 font-semibold mt-1 leading-normal max-w-[280px] mx-auto normal-case font-sans">
+                  Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan
+                  <br /> Kec. Bojong Kab. Purwakarta
+                  <br />
+                  Telp/Hp. +62 877-6908-0999
+                </p>
+                <div className="border-t border-dashed border-slate-300 my-3"></div>
               </div>
 
-              {(() => {
-                const previousDebt =
-                  totalCustomerDebt -
-                  (transaction.paymentMethod === "debt"
-                    ? transaction.remainingDebt
-                    : 0);
-                return (
+              {/* Metadata */}
+              <div className="space-y-1 mb-4 text-[11px] font-bold">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">No. Nota:</span>
+                  <span className="text-slate-900">
+                    {transaction.invoiceNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Tanggal:</span>
+                  <span className="text-slate-800">
+                    {formatDate(transaction.date)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Pelanggan:</span>
+                  <span className="text-slate-900">
+                    {transaction.customerName}
+                  </span>
+                </div>
+              </div>
+
+              <div className="border-t border-dashed border-slate-300 my-3"></div>
+
+              {/* Items Table */}
+              <table className="w-full mb-4 text-[11px]">
+                <thead>
+                  <tr className="border-b border-dashed border-slate-300 text-slate-400 text-[10px] font-bold">
+                    <th className="text-left pb-1 uppercase tracking-wider font-bold">
+                      Item / Deskripsi
+                    </th>
+                    <th className="text-right pb-1 uppercase tracking-wider font-bold">
+                      Subtotal
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dashed divide-slate-150">
+                  {transaction.items.map((item, index) => (
+                    <tr key={index} className="align-top font-bold">
+                      <td className="py-2 pr-2">
+                        <div className="text-slate-900 font-black">
+                          {item.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                          {item.quantity} {item.unit} x {formatRupiah(item.price)}
+                        </div>
+                      </td>
+                      <td className="py-2 text-right text-slate-900">
+                        {formatRupiah(item.subtotal)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="border-t border-dashed border-slate-300 my-3"></div>
+
+              {/* Calculations & Payment summary */}
+              <div className="space-y-1.5 text-[11px] font-bold">
+                <div className="flex justify-between text-xs font-black text-slate-950 pt-1">
+                  <span>TOTAL BELANJA:</span>
+                  <span className="text-slate-950 text-sm font-black">
+                    {formatRupiah(transaction.totalAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Metode Pembayaran:</span>
+                  <span className="uppercase text-slate-900 font-bold">
+                    {transaction.paymentMethod === "debt"
+                      ? "Utang"
+                      : transaction.paymentMethod === "mix"
+                        ? "Campuran (Mix)"
+                        : transaction.paymentMethod}
+                  </span>
+                </div>
+                {transaction.paymentMethod === "mix" && (
                   <>
-                    {previousDebt > 0 && (
-                      <div className="flex justify-between text-slate-950 font-black pt-1 border-t border-dashed border-slate-300">
-                        <span>Utang Sebelumnya:</span>
-                        <span>{formatRupiah(previousDebt)}</span>
-                      </div>
-                    )}
-                    {totalCustomerDebt > 0 && (
-                      <div className="flex justify-between text-slate-950 font-black pt-1 border-t border-dashed border-slate-300">
-                        <span>Total Semua Utang:</span>
-                        <span>{formatRupiah(totalCustomerDebt)}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between text-slate-500 pl-4">
+                      <span>- Cash / Tunai:</span>
+                      <span className="text-slate-800">{formatRupiah(transaction.cashAmount || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500 pl-4">
+                      <span>- Transfer:</span>
+                      <span className="text-slate-800">{formatRupiah(transaction.transferAmount || 0)}</span>
+                    </div>
                   </>
-                );
-              })()}
-            </div>
+                )}
+                <div className="flex justify-between text-slate-600">
+                  <span>Jumlah Dibayar:</span>
+                  <span className="text-slate-900">
+                    {formatRupiah(transaction.amountPaid)}
+                  </span>
+                </div>
 
-            {/* Bank accounts section */}
-            <div className="border-t border-dashed border-slate-300 my-3 pt-3 text-[9px] text-slate-600 font-bold space-y-1">
-              <div className="text-center uppercase text-[8px] text-slate-400 tracking-wider font-bold">Info Rekening Pembayaran</div>
-              <div className="text-center text-[8px] text-slate-500 font-medium normal-case font-sans">(A/N Panji Paranantias Mulyono)</div>
-              <div className="flex justify-between px-2 font-mono">
-                <span>BCA:</span>
-                <span className="text-slate-950 font-black">7410888879</span>
+                {(() => {
+                  const previousDebt =
+                    totalCustomerDebt -
+                    (transaction.paymentMethod === "debt"
+                      ? transaction.remainingDebt
+                      : 0);
+                  return (
+                    <>
+                      {previousDebt > 0 && (
+                        <div className="flex justify-between text-slate-950 font-black pt-1 border-t border-dashed border-slate-300">
+                          <span>Utang Sebelumnya:</span>
+                          <span>{formatRupiah(previousDebt)}</span>
+                        </div>
+                      )}
+                      {totalCustomerDebt > 0 && (
+                        <div className="flex justify-between text-slate-950 font-black pt-1 border-t border-dashed border-slate-300">
+                          <span>Total Semua Utang:</span>
+                          <span>{formatRupiah(totalCustomerDebt)}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
-              <div className="flex justify-between px-2 font-mono">
-                <span>BRI:</span>
-                <span className="text-slate-950 font-black">007501001986565</span>
-              </div>
-              <div className="flex justify-between px-2 font-mono">
-                <span>MANDIRI:</span>
-                <span className="text-slate-950 font-black">173008118881</span>
-              </div>
-            </div>
 
-            <div className="border-t border-dashed border-slate-300 my-4"></div>
+              {/* Bank accounts section */}
+              <div className="border-t border-dashed border-slate-300 my-3 pt-3 text-[9px] text-slate-600 font-bold space-y-1">
+                <div className="text-center uppercase text-[8px] text-slate-400 tracking-wider font-bold">Info Rekening Pembayaran</div>
+                <div className="text-center text-[8px] text-slate-500 font-medium normal-case font-sans">(A/N Panji Paranantias Mulyono)</div>
+                <div className="flex justify-between px-2 font-mono">
+                  <span>BCA:</span>
+                  <span className="text-slate-950 font-black">7410888879</span>
+                </div>
+                <div className="flex justify-between px-2 font-mono">
+                  <span>BRI:</span>
+                  <span className="text-slate-950 font-black">007501001986565</span>
+                </div>
+                <div className="flex justify-between px-2 font-mono">
+                  <span>MANDIRI:</span>
+                  <span className="text-slate-950 font-black">173008118881</span>
+                </div>
+              </div>
 
-            {/* Footer Greeting */}
-            <div className="text-center text-[10px] text-slate-400 space-y-1 font-bold">
-              <p>Terima Kasih Atas Kunjungan Anda</p>
-              <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan</p>
-              <p className="text-[8px] tracking-wider uppercase mt-2">
-                Sistem Kasir v1.0 • CV DPJ Berkah Unggas
-              </p>
+              <div className="border-t border-dashed border-slate-300 my-4"></div>
+
+              {/* Footer Greeting */}
+              <div className="text-center text-[10px] text-slate-400 space-y-1 font-bold">
+                <p>Terima Kasih Atas Kunjungan Anda</p>
+                <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan</p>
+                <p className="text-[8px] tracking-wider uppercase mt-2">
+                  Sistem Kasir v1.0 • CV DPJ Berkah Unggas
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Epson USB Direct Print Control */}
-        {isWebUSBSupported() && (
-          <div className="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl shrink-0 transition-all duration-200">
-            <button
-              type="button"
-              onClick={() => setShowUsbSettings((prev) => !prev)}
-              className="w-full flex items-center justify-between text-xs font-bold text-slate-700 hover:text-slate-900 focus:outline-none cursor-pointer"
-            >
-              <span className="flex items-center gap-1.5 uppercase text-[9px] tracking-wider text-slate-500 font-extrabold">
-                <Usb className={`w-3.5 h-3.5 text-slate-600 ${connectedPrinter ? "animate-pulse" : ""}`} />
-                Printer USB Epson (80mm)
-              </span>
-              <div className="flex items-center gap-2">
-                {connectedPrinter ? (
-                  <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 font-bold">
-                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Terhubung
-                  </span>
-                ) : (
-                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold">
-                    Belum Terhubung
-                  </span>
-                )}
-                <span className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase">
-                  {showUsbSettings ? "Sembunyikan" : "Hubungkan"}
+          {/* Epson USB Direct Print Control */}
+          {isWebUSBSupported() && (
+            <div className="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl shrink-0 transition-all duration-200">
+              <button
+                type="button"
+                onClick={() => setShowUsbSettings((prev) => !prev)}
+                className="w-full flex items-center justify-between text-xs font-bold text-slate-700 hover:text-slate-900 focus:outline-none cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5 uppercase text-[9px] tracking-wider text-slate-500 font-extrabold">
+                  <Usb className={`w-3.5 h-3.5 text-slate-600 ${connectedPrinter ? "animate-pulse" : ""}`} />
+                  Printer USB Epson (80mm)
                 </span>
-              </div>
-            </button>
+                <div className="flex items-center gap-2">
+                  {connectedPrinter ? (
+                    <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 font-bold">
+                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Terhubung
+                    </span>
+                  ) : (
+                    <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold">
+                      Belum Terhubung
+                    </span>
+                  )}
+                  <span className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase">
+                    {showUsbSettings ? "Sembunyikan" : "Hubungkan"}
+                  </span>
+                </div>
+              </button>
 
-            {showUsbSettings && (
-              <div className="mt-3 pt-2.5 border-t border-slate-200/60 space-y-2 text-xs animate-in fade-in duration-200">
-                {connectedPrinter ? (
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-bold text-slate-700 truncate">
-                      Nama: <span className="text-slate-900 font-extrabold">{connectedPrinter.name}</span>
+              {showUsbSettings && (
+                <div className="mt-3 pt-2.5 border-t border-slate-200/60 space-y-2 text-xs animate-in fade-in duration-200">
+                  {connectedPrinter ? (
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-bold text-slate-700 truncate">
+                        Nama: <span className="text-slate-900 font-extrabold">{connectedPrinter.name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          id="direct-escpos-print-btn"
+                          onClick={handleDirectPrint}
+                          disabled={isPrintingDirect}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-wide text-[10px] py-2 px-2.5 shadow-sm transition duration-150 cursor-pointer disabled:bg-emerald-400"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          {isPrintingDirect ? "Mencetak..." : "Cetak Langsung (ESC/POS)"}
+                        </button>
+                        <button
+                          id="disconnect-printer-btn"
+                          onClick={handleDisconnectPrinter}
+                          className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-[10px] py-2 px-2.5 transition duration-150 cursor-pointer"
+                        >
+                          Putus
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        id="direct-escpos-print-btn"
-                        onClick={handleDirectPrint}
-                        disabled={isPrintingDirect}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-wide text-[10px] py-2 px-2.5 shadow-sm transition duration-150 cursor-pointer disabled:bg-emerald-400"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        {isPrintingDirect ? "Mencetak..." : "Cetak Langsung (ESC/POS)"}
-                      </button>
-                      <button
-                        id="disconnect-printer-btn"
-                        onClick={handleDisconnectPrinter}
-                        className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-[10px] py-2 px-2.5 transition duration-150 cursor-pointer"
-                      >
-                        Putus
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                      Hubungkan printer Epson TM-80UB via kabel USB untuk mencetak struk secara langsung instan tanpa dialog browser.
-                    </p>
-                    <button
-                      id="connect-printer-btn"
-                      onClick={handleConnectPrinter}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-black uppercase tracking-wider text-[10px] py-2 px-3 shadow-sm transition duration-150 cursor-pointer"
-                    >
-                      <Usb className="w-3.5 h-3.5 text-slate-600" /> Hubungkan Printer USB
-                    </button>
-                    {isIframe && (
-                      <p className="text-[9px] text-amber-700 font-medium bg-amber-50 border border-amber-100/50 rounded-lg p-2 mt-1 leading-normal">
-                        ⚠️ <b>Tips Iframe:</b> Klik tombol <b>"Buka di Tab Baru"</b> di pojok kanan atas browser Anda agar Chrome dapat membuka dialog koneksi printer USB.
+                  ) : (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                        Hubungkan printer Epson TM-80UB via kabel USB untuk mencetak struk secara langsung instan tanpa dialog browser.
                       </p>
-                    )}
-                  </div>
-                )}
+                      <button
+                        id="connect-printer-btn"
+                        onClick={handleConnectPrinter}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-black uppercase tracking-wider text-[10px] py-2 px-3 shadow-sm transition duration-150 cursor-pointer"
+                      >
+                        <Usb className="w-3.5 h-3.5 text-slate-600" /> Hubungkan Printer USB
+                      </button>
+                      {isIframe && (
+                        <p className="text-[9px] text-amber-700 font-medium bg-amber-50 border border-amber-100/50 rounded-lg p-2 mt-1 leading-normal">
+                          ⚠️ <b>Tips Iframe:</b> Klik tombol <b>"Buka di Tab Baru"</b> di pojok kanan atas browser Anda agar Chrome dapat membuka dialog koneksi printer USB.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                {printerError && (
-                  <div className="flex items-start gap-1 p-2 bg-red-50 border border-red-100 rounded-lg text-[10px] font-semibold text-red-600">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    <span>{printerError}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                  {printerError && (
+                    <div className="flex items-start gap-1 p-2 bg-red-50 border border-red-100 rounded-lg text-[10px] font-semibold text-red-600">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{printerError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Dialog Actions */}
-        <div className="space-y-2 shrink-0">
-          <button
-            id="print-receipt-btn"
-            onClick={handlePrint}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white font-black uppercase tracking-wider text-xs py-3.5 px-4 shadow-md shadow-red-600/10 transition-all duration-200 cursor-pointer"
-          >
-            <Printer className="w-4 h-4" /> Cetak Nota (Print)
-          </button>
-
-          <div className="grid grid-cols-2 gap-2">
+          {/* Dialog Actions */}
+          <div className="space-y-2 shrink-0">
             <button
-              id="download-receipt-pdf-btn"
-              onClick={handleDownloadPDF}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 hover:bg-red-50 text-red-700 font-bold text-xs py-2.5 px-3 shadow-sm transition-all duration-200 cursor-pointer"
+              id="print-receipt-btn"
+              onClick={handlePrint}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white font-black uppercase tracking-wider text-xs py-3.5 px-4 shadow-md shadow-red-600/10 transition-all duration-200 cursor-pointer"
             >
-              <FileText className="w-3.5 h-3.5" /> Download PDF
+              <Printer className="w-4 h-4" /> Cetak Nota (Print)
             </button>
 
-            <button
-              id="download-receipt-txt-btn"
-              onClick={handleDownload}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs py-2.5 px-3 shadow-sm transition-all duration-200 cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" /> Download TXT
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                id="download-receipt-pdf-btn"
+                onClick={handleDownloadPDF}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 hover:bg-red-50 text-red-700 font-bold text-xs py-2.5 px-3 shadow-sm transition-all duration-200 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" /> Download PDF
+              </button>
+
+              <button
+                id="download-receipt-txt-btn"
+                onClick={handleDownload}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs py-2.5 px-3 shadow-sm transition-all duration-200 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" /> Download TXT
+              </button>
+            </div>
           </div>
+
+          {isDuplicate && (
+            <p className="text-center text-[11px] text-red-500 font-bold mt-3">
+              * Cetakan ini adalah salinan (duplikat) yang ditandai secara
+              otomatis.
+            </p>
+          )}
         </div>
-
-        {isDuplicate && (
-          <p className="text-center text-[11px] text-red-500 font-bold mt-3">
-            * Cetakan ini adalah salinan (duplikat) yang ditandai secara
-            otomatis.
-          </p>
-        )}
       </div>
     </div>
   );

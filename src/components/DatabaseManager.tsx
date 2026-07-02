@@ -374,130 +374,132 @@ export default function DatabaseManager() {
       {isOpenModal && (
         <div
           id="db-modal-container"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
         >
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl relative border-t-4 border-red-600 animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-              <h3 className="font-extrabold uppercase tracking-wide text-slate-900 text-xs">
-                {activeTab === "items"
-                  ? editingItemId
-                    ? "Ubah Data Produk Ayam"
-                    : "Tambah Produk Ayam Baru"
-                  : editingCustomerId
-                    ? "Ubah Data Pelanggan"
-                    : "Tambah Pelanggan Baru"}
-              </h3>
-              <button
-                onClick={() => setIsOpenModal(false)}
-                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body / Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {activeTab === "items" ? (
-                /* ITEMS FORM */
-                <>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
-                      Nama Produk Ayam <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="item-name-input"
-                      type="text"
-                      required
-                      placeholder="Contoh: Ayam Broiler Utuh, Fillet Dada, etc."
-                      value={itemName}
-                      onChange={(e) => setItemName(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
-                      Satuan Produk <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      id="item-unit-select"
-                      value={itemUnit}
-                      onChange={(e) => setItemUnit(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
-                    >
-                      <option value="kg">Kilogram (kg)</option>
-                      <option value="ekor">Ekor</option>
-                      <option value="pasang">Pasang (untuk Ati Ampela)</option>
-                      <option value="box">Box</option>
-                      <option value="pack">Pack</option>
-                    </select>
-                  </div>
-                </>
-              ) : (
-                /* CUSTOMERS FORM */
-                <>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
-                      Nama Pelanggan / Toko{" "}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="customer-name-input"
-                      type="text"
-                      required
-                      placeholder="Contoh: Warung Bakso Pak No, Bu Sri, etc."
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
-                      No. Telepon / HP
-                    </label>
-                    <input
-                      id="customer-phone-input"
-                      type="text"
-                      placeholder="Contoh: 081234xxxxxx"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
-                      Alamat Lengkap
-                    </label>
-                    <textarea
-                      id="customer-address-input"
-                      placeholder="Contoh: Pasar Baru blok C no. 4"
-                      value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none resize-none transition-all duration-200"
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Form Buttons */}
-              <div className="flex gap-2 justify-end pt-3 border-t border-slate-50 mt-4">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl relative border-t-4 border-red-600 animate-in fade-in zoom-in-95 duration-200 my-8">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <h3 className="font-extrabold uppercase tracking-wide text-slate-900 text-xs">
+                  {activeTab === "items"
+                    ? editingItemId
+                      ? "Ubah Data Produk Ayam"
+                      : "Tambah Produk Ayam Baru"
+                    : editingCustomerId
+                      ? "Ubah Data Pelanggan"
+                      : "Tambah Pelanggan Baru"}
+                </h3>
                 <button
-                  type="button"
                   onClick={() => setIsOpenModal(false)}
-                  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                  className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
                 >
-                  Batal
-                </button>
-                <button
-                  id="submit-db-btn"
-                  type="submit"
-                  className="rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-red-600/10 transition-all duration-200 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Check className="w-3.5 h-3.5" /> Simpan Data
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+
+              {/* Modal Body / Form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {activeTab === "items" ? (
+                  /* ITEMS FORM */
+                  <>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
+                        Nama Produk Ayam <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="item-name-input"
+                        type="text"
+                        required
+                        placeholder="Contoh: Ayam Broiler Utuh, Fillet Dada, etc."
+                        value={itemName}
+                        onChange={(e) => setItemName(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
+                        Satuan Produk <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="item-unit-select"
+                        value={itemUnit}
+                        onChange={(e) => setItemUnit(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
+                      >
+                        <option value="kg">Kilogram (kg)</option>
+                        <option value="ekor">Ekor</option>
+                        <option value="pasang">Pasang (untuk Ati Ampela)</option>
+                        <option value="box">Box</option>
+                        <option value="pack">Pack</option>
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  /* CUSTOMERS FORM */
+                  <>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
+                        Nama Pelanggan / Toko{" "}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="customer-name-input"
+                        type="text"
+                        required
+                        placeholder="Contoh: Warung Bakso Pak No, Bu Sri, etc."
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
+                        No. Telepon / HP
+                      </label>
+                      <input
+                        id="customer-phone-input"
+                        type="text"
+                        placeholder="Contoh: 081234xxxxxx"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
+                        Alamat Lengkap
+                      </label>
+                      <textarea
+                        id="customer-address-input"
+                        placeholder="Contoh: Pasar Baru blok C no. 4"
+                        value={customerAddress}
+                        onChange={(e) => setCustomerAddress(e.target.value)}
+                        rows={3}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none resize-none transition-all duration-200"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Form Buttons */}
+                <div className="flex gap-2 justify-end pt-3 border-t border-slate-50 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsOpenModal(false)}
+                    className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    id="submit-db-btn"
+                    type="submit"
+                    className="rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-red-600/10 transition-all duration-200 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Simpan Data
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

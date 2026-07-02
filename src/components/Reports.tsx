@@ -784,30 +784,32 @@ export default function Reports() {
 
       {/* CONFIRM DELETE MODAL */}
       {confirmDeleteTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border-t-4 border-red-500 animate-in zoom-in-95 duration-150">
-            <h4 className="font-black text-slate-900 text-sm mb-2 tracking-tight uppercase">
-              Hapus Transaksi Penjualan?
-            </h4>
-            <p className="text-xs text-slate-500 mb-4 font-medium leading-relaxed">
-              Apakah Anda yakin ingin menghapus transaksi <span className="font-bold text-slate-800 font-mono">{confirmDeleteTx.invoiceNumber}</span> ({confirmDeleteTx.customerName}) senilai <span className="font-bold text-slate-800 font-mono">{formatRupiah(confirmDeleteTx.totalAmount)}</span>?
-              <br />
-              <span className="text-red-500 font-bold mt-1 block">Tindakan ini permanen dan akan menghapus semua sisa piutang atau cicilan terkait.</span>
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmDeleteTx(null)}
-                className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                id="confirm-delete-tx-btn"
-                onClick={() => handleDeleteTx(confirmDeleteTx.id)}
-                className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition cursor-pointer"
-              >
-                Hapus
-              </button>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border-t-4 border-red-500 animate-in zoom-in-95 duration-150 my-8">
+              <h4 className="font-black text-slate-900 text-sm mb-2 tracking-tight uppercase">
+                Hapus Transaksi Penjualan?
+              </h4>
+              <p className="text-xs text-slate-500 mb-4 font-medium leading-relaxed">
+                Apakah Anda yakin ingin menghapus transaksi <span className="font-bold text-slate-800 font-mono">{confirmDeleteTx.invoiceNumber}</span> ({confirmDeleteTx.customerName}) senilai <span className="font-bold text-slate-800 font-mono">{formatRupiah(confirmDeleteTx.totalAmount)}</span>?
+                <br />
+                <span className="text-red-500 font-bold mt-1 block">Tindakan ini permanen dan akan menghapus semua sisa piutang atau cicilan terkait.</span>
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmDeleteTx(null)}
+                  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  id="confirm-delete-tx-btn"
+                  onClick={() => handleDeleteTx(confirmDeleteTx.id)}
+                  className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition cursor-pointer"
+                >
+                  Hapus
+                </button>
+              </div>
             </div>
           </div>
         </div>
