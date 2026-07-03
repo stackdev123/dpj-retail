@@ -9,12 +9,49 @@ export interface PrinterDevice {
     name: string;
     vendorId: number;
     productId: number;
+    type?: "usb" | "bluetooth";
 }
 
-// Global cached USB device reference
+// Global cached device references
 let connectedDevice: any = null;
+let connectedDeviceType: "usb" | "bluetooth" | null = null;
 let selectedEndpointOut: any = null;
 let claimedInterfaceNumber: number | null = null;
+let bluetoothWriteCharacteristic: any = null;
+
+// Common service UUIDs for BLE/Bluetooth Thermal Printers to search/claim
+const OPTIONAL_SERVICES = [
+    "000018f0-0000-1000-8000-00805f9b34fb", // Custom print service
+    "0000ffe0-0000-1000-8000-00805f9b34fb", // HM-10 Serial
+    "0000e001-0000-1000-8000-00805f9b34fb", // OEM/Chinese printer
+    "00004953-0000-1000-8000-00805f9b34fb",
+    "49535343-fe7d-41aa-8c12-3d7153514141", // ISSC SPP
+    "00001101-0000-1000-8000-00805f9b34fb", // Serial Port Profile
+];
+
+// Mapping of service UUID to known write characteristic UUIDs
+const SERVICE_CHARACTERISTICS_MAP: { [key: string]: string[] } = {
+    "000018f0-0000-1000-8000-00805f9b34fb": [
+        "00002af1-0000-1000-8000-00805f9b34fb",
+        "00002af0-0000-1000-8000-00805f9b34fb"
+    ],
+    "0000ffe0-0000-1000-8000-00805f9b34fb": [
+        "0000ffe1-0000-1000-8000-00805f9b34fb"
+    ],
+    "0000e001-0000-1000-8000-00805f9b34fb": [
+        "0000e002-0000-1000-8000-00805f9b34fb"
+    ],
+    "00004953-0000-1000-8000-00805f9b34fb": [
+        "00004954-0000-1000-8000-00805f9b34fb"
+    ],
+    "49535343-fe7d-41aa-8c12-3d7153514141": [
+        "49535343-8841-43f4-a8d4-ecbe34729bb3",
+        "49535343-1e4d-4bd9-ba61-23c647249616"
+    ],
+    "00001101-0000-1000-8000-00805f9b34fb": [
+        "00001101-0000-1000-8000-00805f9b34fb"
+    ]
+};
 
 /**
  * Checks if the WebUSB API is supported in the current browser.
@@ -24,14 +61,22 @@ export function isWebUSBSupported(): boolean {
 }
 
 /**
+ * Checks if the Web Bluetooth API is supported in the current browser.
+ */
+export function isBluetoothSupported(): boolean {
+    return typeof navigator !== "undefined" && !!(navigator as any).bluetooth;
+}
+
+/**
  * Returns details of the currently connected printer, if any.
  */
 export function getConnectedPrinter(): PrinterDevice | null {
     if (!connectedDevice) return null;
     return {
-        name: connectedDevice.productName || "Epson Thermal Printer",
-        vendorId: connectedDevice.vendorId,
-        productId: connectedDevice.productId,
+        name: connectedDevice.productName || connectedDevice.name || "Epson Thermal Printer",
+        vendorId: connectedDevice.vendorId || 0,
+        productId: connectedDevice.productId || 0,
+        type: connectedDeviceType || "usb",
     };
 }
 
@@ -110,6 +155,7 @@ async function setupDevice(device: any): Promise<PrinterDevice> {
 
     // 5. Save global references
     connectedDevice = device;
+    connectedDeviceType = "usb";
     selectedEndpointOut = endpointOut;
     claimedInterfaceNumber = interfaceNumber;
 
@@ -121,16 +167,107 @@ async function setupDevice(device: any): Promise<PrinterDevice> {
         name: device.productName || "Epson Thermal Printer",
         vendorId: device.vendorId,
         productId: device.productId,
+        type: "usb",
     };
 }
 
 /**
- * Automatically attempts to reconnect to a previously paired USB printer.
+ * Helper to connect and set up a Bluetooth device.
+ */
+async function setupBluetoothDevice(device: any): Promise<PrinterDevice> {
+    const server = await device.gatt.connect();
+
+    let writeCharacteristic: any = null;
+
+    // Try to find the write characteristic in our known services first
+    for (const serviceUuid of OPTIONAL_SERVICES) {
+        try {
+            const service = await server.getPrimaryService(serviceUuid);
+
+            // 1. Try specific known write characteristics first to avoid blocklist SecurityErrors
+            const knownChars = SERVICE_CHARACTERISTICS_MAP[serviceUuid] || [];
+            for (const charUuid of knownChars) {
+                try {
+                    const char = await service.getCharacteristic(charUuid);
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        writeCharacteristic = char;
+                        break;
+                    }
+                } catch (charErr) {
+                    // Ignore and check next known char
+                }
+            }
+
+            // 2. If not found, try getting all characteristics for this service
+            if (!writeCharacteristic) {
+                const characteristics = await service.getCharacteristics();
+                for (const char of characteristics) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        writeCharacteristic = char;
+                        break;
+                    }
+                }
+            }
+        } catch (e) {
+            // Ignore and try next service
+        }
+        if (writeCharacteristic) break;
+    }
+
+    // If not found, try scanning all services (if allowed by browser/device)
+    if (!writeCharacteristic) {
+        try {
+            const services = await server.getPrimaryServices();
+            for (const service of services) {
+                const characteristics = await service.getCharacteristics();
+                for (const char of characteristics) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        writeCharacteristic = char;
+                        break;
+                    }
+                }
+                if (writeCharacteristic) break;
+            }
+        } catch (e) {
+            console.warn("Failed to retrieve primary services:", e);
+        }
+    }
+
+    if (!writeCharacteristic) {
+        try {
+            device.gatt.disconnect();
+        } catch (e) {
+            // Ignore
+        }
+        throw new Error("Tidak menemukan port tulis data (Write Characteristic) pada printer Bluetooth ini.");
+    }
+
+    // Save references
+    connectedDevice = device;
+    connectedDeviceType = "bluetooth";
+    bluetoothWriteCharacteristic = writeCharacteristic;
+
+    // Initialize printer command
+    const initCmd = new Uint8Array([ESC, 0x40]);
+    if (writeCharacteristic.writeValueWithoutResponse) {
+        await writeCharacteristic.writeValueWithoutResponse(initCmd).catch(() => { });
+    } else {
+        await writeCharacteristic.writeValue(initCmd).catch(() => { });
+    }
+
+    return {
+        name: device.name || "Printer Bluetooth",
+        vendorId: 0,
+        productId: 0,
+        type: "bluetooth",
+    };
+}
+
+/**
+ * Automatically attempts to reconnect to a previously paired USB or Bluetooth printer.
  * This runs without showing a browser selection dialog.
  */
 export async function autoConnectPrinter(): Promise<PrinterDevice | null> {
-    if (!isWebUSBSupported()) return null;
-
     if (connectedDevice) {
         return getConnectedPrinter();
     }
@@ -140,32 +277,49 @@ export async function autoConnectPrinter(): Promise<PrinterDevice | null> {
     }
 
     activeConnectionPromise = (async () => {
-        try {
-            const devices = await (navigator as any).usb.getDevices();
-            if (!devices || devices.length === 0) return null;
-
-            // Look for an Epson printer (vendorId 0x04b8) first, else take the first available
-            let device = devices.find((d: any) => d.vendorId === 0x04b8);
-            if (!device) {
-                device = devices[0];
+        // 1. Try USB reconnect first
+        if (isWebUSBSupported()) {
+            try {
+                const devices = await (navigator as any).usb.getDevices();
+                if (devices && devices.length > 0) {
+                    let device = devices.find((d: any) => d.vendorId === 0x04b8);
+                    if (!device) {
+                        device = devices[0];
+                    }
+                    return await setupDevice(device);
+                }
+            } catch (err) {
+                console.warn("Auto-connect USB failed, trying Bluetooth...", err);
             }
-
-            return await setupDevice(device);
-        } catch (err) {
-            console.warn("Gagal menghubungkan otomatis ke printer yang tersimpan:", err);
-            return null;
-        } finally {
-            activeConnectionPromise = null;
         }
+
+        // 2. Try Bluetooth reconnect next
+        if (isBluetoothSupported()) {
+            try {
+                const navigatorAny = navigator as any;
+                if (navigatorAny.bluetooth && navigatorAny.bluetooth.getDevices) {
+                    const btDevices = await navigatorAny.bluetooth.getDevices();
+                    if (btDevices && btDevices.length > 0) {
+                        return await setupBluetoothDevice(btDevices[0]);
+                    }
+                }
+            } catch (err) {
+                console.warn("Auto-connect Bluetooth failed:", err);
+            }
+        }
+
+        return null;
     })();
 
-    return activeConnectionPromise;
+    try {
+        return await activeConnectionPromise;
+    } finally {
+        activeConnectionPromise = null;
+    }
 }
 
 /**
  * Attempts to request and connect to a WebUSB printer.
- * If filters are specified, it tries to look for Epson printers (vendorId: 0x04b8) first,
- * then falls back to letting the user select any USB device.
  */
 export async function connectPrinter(): Promise<PrinterDevice> {
     if (!isWebUSBSupported()) {
@@ -177,7 +331,6 @@ export async function connectPrinter(): Promise<PrinterDevice> {
 
     try {
         // Request permission for USB device
-        // Epson vendor ID is 0x04b8. We also allow selecting any device to support other thermal printers.
         const device = await (navigator as any).usb.requestDevice({
             filters: [
                 { vendorId: 0x04b8 }, // Epson
@@ -196,22 +349,54 @@ export async function connectPrinter(): Promise<PrinterDevice> {
 }
 
 /**
- * Disconnects the printer and releases USB interfaces.
+ * Attempts to request and connect to a Web Bluetooth printer.
+ */
+export async function connectBluetoothPrinter(): Promise<PrinterDevice> {
+    if (!isBluetoothSupported()) {
+        throw new Error("Web Bluetooth tidak didukung di browser ini. Gunakan Google Chrome atau Microsoft Edge.");
+    }
+
+    // Disconnect any existing printer session first
+    await disconnectPrinter().catch(() => { });
+
+    try {
+        const device = await (navigator as any).bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: OPTIONAL_SERVICES,
+        });
+
+        return await setupBluetoothDevice(device);
+    } catch (err: any) {
+        console.error("Bluetooth Printer connection error:", err);
+        throw new Error(err.message || "Gagal menghubungkan printer via Bluetooth.");
+    }
+}
+
+/**
+ * Disconnects the printer and releases USB/Bluetooth interfaces.
  */
 export async function disconnectPrinter(): Promise<void> {
     if (!connectedDevice) return;
 
     try {
-        if (claimedInterfaceNumber !== null) {
-            await connectedDevice.releaseInterface(claimedInterfaceNumber);
+        if (connectedDeviceType === "usb") {
+            if (claimedInterfaceNumber !== null) {
+                await connectedDevice.releaseInterface(claimedInterfaceNumber);
+            }
+            await connectedDevice.close();
+        } else if (connectedDeviceType === "bluetooth") {
+            if (connectedDevice.gatt && connectedDevice.gatt.connected) {
+                await connectedDevice.gatt.disconnect();
+            }
         }
-        await connectedDevice.close();
     } catch (err) {
         console.warn("Error during printer close/release:", err);
     } finally {
         connectedDevice = null;
+        connectedDeviceType = null;
         selectedEndpointOut = null;
         claimedInterfaceNumber = null;
+        bluetoothWriteCharacteristic = null;
     }
 }
 
@@ -383,28 +568,78 @@ export function compileEscPosReceipt(
 }
 
 /**
- * Sends a raw ESC/POS transaction receipt payload directly to the connected WebUSB printer.
+ * Sends a raw ESC/POS transaction receipt payload directly to the connected WebUSB or Web Bluetooth printer.
  */
 export async function printDirectEscPos(
     transaction: Transaction,
     totalCustomerDebt: number,
     isDuplicate: boolean
 ): Promise<void> {
-    if (!connectedDevice || !selectedEndpointOut) {
-        throw new Error("Printer Epson belum terhubung. Silakan hubungkan printer terlebih dahulu.");
+    if (!connectedDevice) {
+        throw new Error("Printer belum terhubung. Silakan hubungkan printer terlebih dahulu.");
     }
 
     try {
         const rawData = compileEscPosReceipt(transaction, totalCustomerDebt, isDuplicate);
 
-        // Transfer bulk data chunk-by-chunk to prevent endpoint overflow if data size is very large
-        const maxChunkSize = 64; // Standard bulk endpoint buffer size
-        for (let offset = 0; offset < rawData.length; offset += maxChunkSize) {
-            const chunk = rawData.slice(offset, offset + maxChunkSize);
-            await connectedDevice.transferOut(selectedEndpointOut.endpointNumber, chunk);
+        if (connectedDeviceType === "usb") {
+            if (!selectedEndpointOut) {
+                throw new Error("Printer USB tidak siap (endpoint output tidak ditemukan).");
+            }
+            // Transfer bulk data chunk-by-chunk to prevent endpoint overflow if data size is very large
+            const maxChunkSize = 64; // Standard bulk endpoint buffer size
+            for (let offset = 0; offset < rawData.length; offset += maxChunkSize) {
+                const chunk = rawData.slice(offset, offset + maxChunkSize);
+                await connectedDevice.transferOut(selectedEndpointOut.endpointNumber, chunk);
+            }
+        } else if (connectedDeviceType === "bluetooth") {
+            // 1. Automatic reconnection check before printing
+            if (!connectedDevice.gatt || !connectedDevice.gatt.connected || !bluetoothWriteCharacteristic) {
+                console.warn("Bluetooth GATT server is disconnected or not set up. Reconnecting...");
+                await setupBluetoothDevice(connectedDevice);
+            }
+
+            if (!bluetoothWriteCharacteristic) {
+                throw new Error("Printer Bluetooth tidak siap (write characteristic tidak ditemukan).");
+            }
+
+            const maxChunkSize = 20; // 20 bytes is universally safe for BLE MTU chunking
+            for (let offset = 0; offset < rawData.length; offset += maxChunkSize) {
+                const chunk = rawData.slice(offset, offset + maxChunkSize);
+
+                try {
+                    if (bluetoothWriteCharacteristic.writeValueWithoutResponse) {
+                        await bluetoothWriteCharacteristic.writeValueWithoutResponse(chunk);
+                    } else if (bluetoothWriteCharacteristic.writeValue) {
+                        await bluetoothWriteCharacteristic.writeValue(chunk);
+                    } else {
+                        await bluetoothWriteCharacteristic.writeValueWithResponse(chunk);
+                    }
+                } catch (writeErr: any) {
+                    const errMsg = (writeErr.message || "").toLowerCase();
+                    if (errMsg.includes("disconnected") || errMsg.includes("not connected") || errMsg.includes("gatt") || errMsg.includes("execute")) {
+                        console.warn("GATT server disconnected during write. Reconnecting and retrying chunk...", writeErr);
+                        await setupBluetoothDevice(connectedDevice);
+
+                        // Retry writing the chunk
+                        if (bluetoothWriteCharacteristic.writeValueWithoutResponse) {
+                            await bluetoothWriteCharacteristic.writeValueWithoutResponse(chunk);
+                        } else if (bluetoothWriteCharacteristic.writeValue) {
+                            await bluetoothWriteCharacteristic.writeValue(chunk);
+                        } else {
+                            await bluetoothWriteCharacteristic.writeValueWithResponse(chunk);
+                        }
+                    } else {
+                        throw writeErr;
+                    }
+                }
+
+                // Give a tiny breather to the Bluetooth controller to avoid buffer overrun
+                await new Promise((resolve) => setTimeout(resolve, 15));
+            }
         }
     } catch (err: any) {
         console.error("Direct ESC/POS Print failed:", err);
-        throw new Error(err.message || "Gagal mengirim data cetak ke printer Epson.");
+        throw new Error(err.message || "Gagal mengirim data cetak ke printer.");
     }
 }

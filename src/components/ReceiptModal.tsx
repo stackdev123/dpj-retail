@@ -2,12 +2,14 @@ import React, { useRef, useState, useEffect } from "react";
 import { Transaction } from "../types";
 import { formatRupiah, formatDate, downloadFile } from "../utils/format";
 import { db } from "../utils/db";
-import { Printer, Download, X, CopyCheck, FileText, Usb, CheckCircle2, AlertCircle } from "lucide-react";
+import { Printer, Download, X, CopyCheck, FileText, Usb, CheckCircle2, AlertCircle, Bluetooth } from "lucide-react";
 import { jsPDF } from "jspdf";
 import {
   isWebUSBSupported,
+  isBluetoothSupported,
   getConnectedPrinter,
   connectPrinter,
+  connectBluetoothPrinter,
   disconnectPrinter,
   printDirectEscPos,
   PrinterDevice,
@@ -194,6 +196,16 @@ export default function ReceiptModal({
     }
   };
 
+  const handleConnectBluetoothPrinter = async () => {
+    setPrinterError(null);
+    try {
+      const dev = await connectBluetoothPrinter();
+      setConnectedPrinter(dev);
+    } catch (err: any) {
+      setPrinterError(formatPrinterError(err));
+    }
+  };
+
   const handleDisconnectPrinter = async () => {
     try {
       await disconnectPrinter();
@@ -223,7 +235,7 @@ export default function ReceiptModal({
   };
 
   useEffect(() => {
-    if (isWebUSBSupported() && !connectedPrinter) {
+    if ((isWebUSBSupported() || isBluetoothSupported()) && !connectedPrinter) {
       autoConnectPrinter()
         .then((dev) => {
           if (dev) {
@@ -875,13 +887,17 @@ export default function ReceiptModal({
             </div>
           </div>
 
-          {/* Epson USB Direct Print Control */}
-          {isWebUSBSupported() && (
+          {/* Thermal Printer Direct Print Control */}
+          {(isWebUSBSupported() || isBluetoothSupported()) && (
             <div className="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl shrink-0 transition-all duration-200">
               <div className="w-full flex items-center justify-between text-xs font-bold text-slate-700">
                 <span className="flex items-center gap-1.5 uppercase text-[9px] tracking-wider text-slate-500 font-extrabold">
-                  <Usb className={`w-3.5 h-3.5 text-slate-600 ${connectedPrinter ? "animate-pulse" : ""}`} />
-                  Printer USB Epson (80mm)
+                  {connectedPrinter?.type === "bluetooth" ? (
+                    <Bluetooth className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+                  ) : (
+                    <Usb className={`w-3.5 h-3.5 text-slate-600 ${connectedPrinter ? "animate-pulse" : ""}`} />
+                  )}
+                  Printer Thermal {connectedPrinter?.type ? `(${connectedPrinter.type.toUpperCase()})` : "80mm"}
                 </span>
                 <div className="flex items-center gap-2">
                   {connectedPrinter ? (
@@ -922,20 +938,36 @@ export default function ReceiptModal({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                      Hubungkan printer Epson TM-80UB via kabel USB untuk mencetak struk secara langsung instan tanpa dialog browser.
+                      Hubungkan printer thermal 80mm via kabel USB atau koneksi Bluetooth untuk cetak struk instan.
                     </p>
-                    <button
-                      id="connect-printer-btn"
-                      onClick={handleConnectPrinter}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-black uppercase tracking-wider text-[10px] py-2 px-3 shadow-sm transition duration-150 cursor-pointer"
-                    >
-                      <Usb className="w-3.5 h-3.5 text-slate-600" /> Hubungkan Printer USB
-                    </button>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {isWebUSBSupported() && (
+                        <button
+                          id="connect-printer-btn"
+                          onClick={handleConnectPrinter}
+                          className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-850 font-black uppercase tracking-wider text-[10px] py-2 px-2 shadow-sm transition duration-150 cursor-pointer"
+                        >
+                          <Usb className="w-3.5 h-3.5 text-slate-600" /> Hubungkan USB
+                        </button>
+                      )}
+
+                      {isBluetoothSupported() && (
+                        <button
+                          id="connect-bluetooth-printer-btn"
+                          onClick={handleConnectBluetoothPrinter}
+                          className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-850 font-black uppercase tracking-wider text-[10px] py-2 px-2 shadow-sm transition duration-150 cursor-pointer"
+                        >
+                          <Bluetooth className="w-3.5 h-3.5 text-blue-600" /> Bluetooth
+                        </button>
+                      )}
+                    </div>
+
                     {isIframe && (
                       <p className="text-[9px] text-amber-700 font-medium bg-amber-50 border border-amber-100/50 rounded-lg p-2 mt-1 leading-normal">
-                        ⚠️ <b>Tips Iframe:</b> Klik tombol <b>"Buka di Tab Baru"</b> di pojok kanan atas browser Anda agar Chrome dapat membuka dialog koneksi printer USB.
+                        ⚠️ <b>Tips Iframe:</b> Klik tombol <b>"Buka di Tab Baru"</b> di pojok kanan atas browser Anda agar Chrome dapat membuka dialog koneksi printer USB/Bluetooth.
                       </p>
                     )}
                   </div>
