@@ -31,9 +31,114 @@ export default function ReceiptModal({
   const [connectedPrinter, setConnectedPrinter] = useState<PrinterDevice | null>(getConnectedPrinter());
   const [printerError, setPrinterError] = useState<string | null>(null);
   const [isPrintingDirect, setIsPrintingDirect] = useState<boolean>(false);
-  const [showUsbSettings, setShowUsbSettings] = useState<boolean>(false);
+  const [showUsbSettings, setShowUsbSettings] = useState<boolean>(true);
   const receiptRef = useRef<HTMLDivElement>(null);
   const isIframe = typeof window !== "undefined" && window.self !== window.top;
+
+  const formatPrinterError = (err: any): string => {
+    let msg = err.message || String(err);
+    if (msg.includes("permissions policy") || msg.includes("disallowed")) {
+      return "Izin USB diblokir di dalam frame pratinjau. Silakan Buka di Tab Baru (ikon panah keluar di pojok kanan atas browser Anda) untuk menggunakan fitur printer USB thermal secara langsung.";
+    }
+    if (
+      msg.toLowerCase().includes("access denied") ||
+      msg.toLowerCase().includes("failed to execute 'open'") ||
+      msg.toLowerCase().includes("securityerror")
+    ) {
+      return (
+        "AKSES PRINTER DITOLAK (Access Denied):\n\n" +
+        "Sistem operasi (Windows/Mac) Anda mengunci port USB printer ini dengan driver bawaan (Epson/Printer standard).\n\n" +
+        "💡 Solusi 1: Cetak via Browser (Sangat Mudah & Aman)\n" +
+        "Silakan tutup opsi USB ini dan klik tombol merah \"Cetak Nota (Print)\" di paling bawah. Metode ini menggunakan dialog cetak bawaan yang kompatibel dengan semua jenis printer/driver tanpa perlu mengubah apa pun.\n\n" +
+        "💡 Solusi 2: Gunakan Driver WinUSB (Cetak Instan Tanpa Dialog)\n" +
+        "Untuk Windows, Anda perlu mengganti driver printer ke WinUSB:\n" +
+        "1. Unduh software gratis Zadig di zadig.akeo.ie\n" +
+        "2. Colok printer via USB, buka Zadig\n" +
+        "3. Klik Options -> List All Devices\n" +
+        "4. Pilih printer USB Anda dari dropdown\n" +
+        "5. Ganti Driver target ke WinUSB, lalu klik Replace Driver\n" +
+        "6. Segarkan aplikasi ini dan hubungkan kembali."
+      );
+    }
+    return msg;
+  };
+
+  const renderPrinterError = () => {
+    if (!printerError) return null;
+
+    const isAccessDenied =
+      printerError.toLowerCase().includes("access denied") ||
+      printerError.toLowerCase().includes("failed to execute 'open'") ||
+      printerError.toLowerCase().includes("akses printer ditolak");
+
+    if (isAccessDenied) {
+      return (
+        <div className="bg-red-50/50 border border-red-200 rounded-xl p-4 text-left animate-in fade-in duration-200">
+          <div className="flex items-start gap-2 mb-3">
+            <AlertCircle className="w-4.5 h-4.5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <h5 className="font-bold text-xs text-red-800 uppercase tracking-tight">
+                Akses Printer USB Ditolak (Access Denied)
+              </h5>
+              <p className="text-[10px] text-red-600/90 font-medium leading-relaxed mt-0.5">
+                Sistem operasi Anda sedang mengunci port USB printer ini dengan driver bawaan (Epson/Printer standard).
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {/* Solusi 1 */}
+            <div className="bg-white/80 border border-slate-100 rounded-lg p-2.5 shadow-xs">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-emerald-50 text-[10px] font-black text-emerald-700 border border-emerald-150">
+                  1
+                </span>
+                <span className="font-bold text-[11px] text-slate-800">
+                  Solusi Termudah &amp; Instan (Rekomendasi)
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-600 font-medium leading-relaxed pl-6">
+                Cukup klik tombol merah besar <b className="text-red-600 font-extrabold">"Cetak Nota (Print)"</b> di paling bawah modal ini. Metode ini menggunakan dialog cetak browser biasa yang otomatis bisa mencetak ke printer apa saja tanpa perlu setup driver tambahan.
+              </p>
+            </div>
+
+            {/* Solusi 2 */}
+            <div className="bg-white/80 border border-slate-100 rounded-lg p-2.5 shadow-xs">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-blue-50 text-[10px] font-black text-blue-700 border border-blue-150">
+                  2
+                </span>
+                <span className="font-bold text-[11px] text-slate-800">
+                  Cetak Instan Langsung (Konfigurasi Windows)
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-600 font-medium leading-relaxed pl-6 space-y-1">
+                <p>Agar printer bisa diakses langsung lewat web browser Google Chrome:</p>
+                <ol className="list-decimal pl-3.5 space-y-1 mt-1 text-slate-700">
+                  <li>
+                    Unduh software gratis <b className="text-blue-600 font-bold">Zadig</b> di website resmi <a href="https://zadig.akeo.ie" target="_blank" rel="noopener noreferrer" className="underline font-bold text-blue-700">zadig.akeo.ie</a>
+                  </li>
+                  <li>Hubungkan kabel USB printer ke PC/Laptop Anda.</li>
+                  <li>Buka aplikasi Zadig, pilih menu <b className="font-bold">Options</b> &gt; centang <b className="font-bold">List All Devices</b>.</li>
+                  <li>Di dropdown atas, pilih perangkat printer USB Anda (contoh: <i>Epson TM-T82</i>).</li>
+                  <li>Pastikan driver target di sebelah kanan tanda panah hijau adalah <b className="font-bold text-emerald-700">WinUSB</b>.</li>
+                  <li>Klik tombol besar <b className="font-bold text-blue-700">Replace Driver</b> atau <b className="font-bold text-blue-700">Reinstall Driver</b>.</li>
+                  <li>Refresh halaman web kasir ini dan coba hubungkan kembali!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-start gap-1.5 p-3 bg-red-50 border border-red-100 rounded-lg text-[10px] font-semibold text-red-600 whitespace-pre-line text-left leading-relaxed">
+        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-red-500" />
+        <span>{printerError}</span>
+      </div>
+    );
+  };
 
   const handleConnectPrinter = async () => {
     setPrinterError(null);
@@ -41,11 +146,7 @@ export default function ReceiptModal({
       const dev = await connectPrinter();
       setConnectedPrinter(dev);
     } catch (err: any) {
-      let msg = err.message || "Gagal menyambungkan ke printer.";
-      if (msg.includes("permissions policy") || msg.includes("disallowed")) {
-        msg = "Izin USB diblokir di dalam frame pratinjau. Silakan Buka di Tab Baru (ikon panah keluar di pojok kanan atas browser Anda) untuk menggunakan fitur printer USB thermal secara langsung.";
-      }
-      setPrinterError(msg);
+      setPrinterError(formatPrinterError(err));
     }
   };
 
@@ -71,7 +172,7 @@ export default function ReceiptModal({
 
       await printDirectEscPos(transaction, totalCustomerDebt, isDuplicate);
     } catch (err: any) {
-      setPrinterError(err.message || "Gagal mencetak langsung. Pastikan printer Epson TM-80UB terhubung.");
+      setPrinterError(formatPrinterError(err));
     } finally {
       setIsPrintingDirect(false);
     }
@@ -511,7 +612,7 @@ export default function ReceiptModal({
     doc.text("Barang yang sudah dibeli tidak dapat ditukar/dikembalikan", 40, y, { align: "center" });
     y += 4.5;
     doc.setFontSize(6.5);
-    doc.text("Sistem Kasir v1.0 • CV DPJ Berkah Unggas", 40, y, { align: "center" });
+    doc.text("Sistem Kasir v1.0 | CV DPJ Berkah Unggas", 40, y, { align: "center" });
 
     doc.save(`Struk_${transaction.invoiceNumber}.pdf`);
   };
@@ -719,11 +820,7 @@ export default function ReceiptModal({
           {/* Epson USB Direct Print Control */}
           {isWebUSBSupported() && (
             <div className="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl shrink-0 transition-all duration-200">
-              <button
-                type="button"
-                onClick={() => setShowUsbSettings((prev) => !prev)}
-                className="w-full flex items-center justify-between text-xs font-bold text-slate-700 hover:text-slate-900 focus:outline-none cursor-pointer"
-              >
+              <div className="w-full flex items-center justify-between text-xs font-bold text-slate-700">
                 <span className="flex items-center gap-1.5 uppercase text-[9px] tracking-wider text-slate-500 font-extrabold">
                   <Usb className={`w-3.5 h-3.5 text-slate-600 ${connectedPrinter ? "animate-pulse" : ""}`} />
                   Printer USB Epson (80mm)
@@ -738,66 +835,56 @@ export default function ReceiptModal({
                       Belum Terhubung
                     </span>
                   )}
-                  <span className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase">
-                    {showUsbSettings ? "Sembunyikan" : "Hubungkan"}
-                  </span>
                 </div>
-              </button>
+              </div>
 
-              {showUsbSettings && (
-                <div className="mt-3 pt-2.5 border-t border-slate-200/60 space-y-2 text-xs animate-in fade-in duration-200">
-                  {connectedPrinter ? (
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-bold text-slate-700 truncate">
-                        Nama: <span className="text-slate-900 font-extrabold">{connectedPrinter.name}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          id="direct-escpos-print-btn"
-                          onClick={handleDirectPrint}
-                          disabled={isPrintingDirect}
-                          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-wide text-[10px] py-2 px-2.5 shadow-sm transition duration-150 cursor-pointer disabled:bg-emerald-400"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          {isPrintingDirect ? "Mencetak..." : "Cetak Langsung (ESC/POS)"}
-                        </button>
-                        <button
-                          id="disconnect-printer-btn"
-                          onClick={handleDisconnectPrinter}
-                          className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-[10px] py-2 px-2.5 transition duration-150 cursor-pointer"
-                        >
-                          Putus
-                        </button>
-                      </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-200/60 space-y-2 text-xs animate-in fade-in duration-200">
+                {connectedPrinter ? (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold text-slate-700 truncate">
+                      Nama: <span className="text-slate-900 font-extrabold">{connectedPrinter.name}</span>
                     </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                        Hubungkan printer Epson TM-80UB via kabel USB untuk mencetak struk secara langsung instan tanpa dialog browser.
-                      </p>
+                    <div className="flex gap-2">
                       <button
-                        id="connect-printer-btn"
-                        onClick={handleConnectPrinter}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-black uppercase tracking-wider text-[10px] py-2 px-3 shadow-sm transition duration-150 cursor-pointer"
+                        id="direct-escpos-print-btn"
+                        onClick={handleDirectPrint}
+                        disabled={isPrintingDirect}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-wide text-[10px] py-2 px-2.5 shadow-sm transition duration-150 cursor-pointer disabled:bg-emerald-400"
                       >
-                        <Usb className="w-3.5 h-3.5 text-slate-600" /> Hubungkan Printer USB
+                        <Printer className="w-3.5 h-3.5" />
+                        {isPrintingDirect ? "Mencetak..." : "Cetak Langsung (ESC/POS)"}
                       </button>
-                      {isIframe && (
-                        <p className="text-[9px] text-amber-700 font-medium bg-amber-50 border border-amber-100/50 rounded-lg p-2 mt-1 leading-normal">
-                          ⚠️ <b>Tips Iframe:</b> Klik tombol <b>"Buka di Tab Baru"</b> di pojok kanan atas browser Anda agar Chrome dapat membuka dialog koneksi printer USB.
-                        </p>
-                      )}
+                      <button
+                        id="disconnect-printer-btn"
+                        onClick={handleDisconnectPrinter}
+                        className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-bold text-[10px] py-2 px-2.5 transition duration-150 cursor-pointer"
+                      >
+                        Putus
+                      </button>
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Hubungkan printer Epson TM-80UB via kabel USB untuk mencetak struk secara langsung instan tanpa dialog browser.
+                    </p>
+                    <button
+                      id="connect-printer-btn"
+                      onClick={handleConnectPrinter}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-black uppercase tracking-wider text-[10px] py-2 px-3 shadow-sm transition duration-150 cursor-pointer"
+                    >
+                      <Usb className="w-3.5 h-3.5 text-slate-600" /> Hubungkan Printer USB
+                    </button>
+                    {isIframe && (
+                      <p className="text-[9px] text-amber-700 font-medium bg-amber-50 border border-amber-100/50 rounded-lg p-2 mt-1 leading-normal">
+                        ⚠️ <b>Tips Iframe:</b> Klik tombol <b>"Buka di Tab Baru"</b> di pojok kanan atas browser Anda agar Chrome dapat membuka dialog koneksi printer USB.
+                      </p>
+                    )}
+                  </div>
+                )}
 
-                  {printerError && (
-                    <div className="flex items-start gap-1 p-2 bg-red-50 border border-red-100 rounded-lg text-[10px] font-semibold text-red-600">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>{printerError}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+                {renderPrinterError()}
+              </div>
             </div>
           )}
 
