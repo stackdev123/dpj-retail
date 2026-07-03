@@ -35,6 +35,133 @@ export function getConnectedPrinter(): PrinterDevice | null {
     };
 }
 
+let activeConnectionPromise: Promise<PrinterDevice | null> | null = null;
+
+/**
+ * Robust helper to open a device, select configuration, auto-detect endpoints, 
+ * and claim the interface with retry mechanics to handle locked states.
+ */
+async function setupDevice(device: any): Promise<PrinterDevice> {
+    // 1. Open the device if not already open
+    if (!device.opened) {
+        await device.open();
+    }
+
+    // 2. Select configuration
+    if (device.configuration === null) {
+        await device.selectConfiguration(1);
+    }
+
+    // 3. Auto-detect bulk OUT endpoint and interface
+    let endpointOut: any = null;
+    let interfaceNumber: number | null = null;
+
+    for (const iface of device.configuration?.interfaces || []) {
+        for (const alt of iface.alternates) {
+            for (const ep of alt.endpoints) {
+                if (ep.direction === "out" && ep.type === "bulk") {
+                    endpointOut = ep;
+                    interfaceNumber = iface.interfaceNumber;
+                    break;
+                }
+            }
+            if (endpointOut) break;
+        }
+        if (endpointOut) break;
+    }
+
+    if (!endpointOut || interfaceNumber === null) {
+        throw new Error("Tidak menemukan port output data (Bulk OUT endpoint) pada printer ini.");
+    }
+
+    // 4. Claim the interface with fallback/retry
+    try {
+        await device.claimInterface(interfaceNumber);
+    } catch (claimErr: any) {
+        console.warn("First claim interface attempt failed, trying release and retry...", claimErr);
+        try {
+            await device.releaseInterface(interfaceNumber).catch(() => { });
+            await device.claimInterface(interfaceNumber);
+        } catch (retryErr: any) {
+            console.warn("Release and retry failed, attempting device reset...", retryErr);
+            try {
+                // Try resetting the USB device to clear any stuck hardware lock
+                await device.reset().catch(() => { });
+                // Give the OS/USB stack 500ms to recover the device state
+                await new Promise((resolve) => setTimeout(resolve, 500));
+
+                // Re-open device after reset
+                if (!device.opened) {
+                    await device.open();
+                }
+                if (device.configuration === null) {
+                    await device.selectConfiguration(1);
+                }
+                await device.claimInterface(interfaceNumber);
+            } catch (finalErr: any) {
+                console.error("Failed to claim interface after reset:", finalErr);
+                if (finalErr.message && finalErr.message.includes("Unable to claim interface")) {
+                    throw new Error("Gagal mengklaim antarmuka printer (Unable to claim interface). Pastikan tidak ada aplikasi kasir lain atau tab browser lain yang sedang menggunakan printer ini.");
+                }
+                throw finalErr;
+            }
+        }
+    }
+
+    // 5. Save global references
+    connectedDevice = device;
+    selectedEndpointOut = endpointOut;
+    claimedInterfaceNumber = interfaceNumber;
+
+    // 6. Send Printer Initialization command (ESC @)
+    const initCmd = new Uint8Array([ESC, 0x40]);
+    await device.transferOut(endpointOut.endpointNumber, initCmd).catch(() => { });
+
+    return {
+        name: device.productName || "Epson Thermal Printer",
+        vendorId: device.vendorId,
+        productId: device.productId,
+    };
+}
+
+/**
+ * Automatically attempts to reconnect to a previously paired USB printer.
+ * This runs without showing a browser selection dialog.
+ */
+export async function autoConnectPrinter(): Promise<PrinterDevice | null> {
+    if (!isWebUSBSupported()) return null;
+
+    if (connectedDevice) {
+        return getConnectedPrinter();
+    }
+
+    if (activeConnectionPromise) {
+        return activeConnectionPromise;
+    }
+
+    activeConnectionPromise = (async () => {
+        try {
+            const devices = await (navigator as any).usb.getDevices();
+            if (!devices || devices.length === 0) return null;
+
+            // Look for an Epson printer (vendorId 0x04b8) first, else take the first available
+            let device = devices.find((d: any) => d.vendorId === 0x04b8);
+            if (!device) {
+                device = devices[0];
+            }
+
+            return await setupDevice(device);
+        } catch (err) {
+            console.warn("Gagal menghubungkan otomatis ke printer yang tersimpan:", err);
+            return null;
+        } finally {
+            activeConnectionPromise = null;
+        }
+    })();
+
+    return activeConnectionPromise;
+}
+
 /**
  * Attempts to request and connect to a WebUSB printer.
  * If filters are specified, it tries to look for Epson printers (vendorId: 0x04b8) first,
@@ -44,6 +171,9 @@ export async function connectPrinter(): Promise<PrinterDevice> {
     if (!isWebUSBSupported()) {
         throw new Error("WebUSB tidak didukung di browser ini. Gunakan Google Chrome atau Microsoft Edge.");
     }
+
+    // Disconnect any existing printer session first to release interface
+    await disconnectPrinter().catch(() => { });
 
     try {
         // Request permission for USB device
@@ -58,52 +188,7 @@ export async function connectPrinter(): Promise<PrinterDevice> {
             return await (navigator as any).usb.requestDevice({ filters: [] });
         });
 
-        await device.open();
-
-        // Select configuration
-        if (device.configuration === null) {
-            await device.selectConfiguration(1);
-        }
-
-        // Auto-detect bulk OUT endpoint and interface
-        let endpointOut: any = null;
-        let interfaceNumber: number | null = null;
-
-        for (const iface of device.configuration?.interfaces || []) {
-            for (const alt of iface.alternates) {
-                for (const ep of alt.endpoints) {
-                    if (ep.direction === "out" && ep.type === "bulk") {
-                        endpointOut = ep;
-                        interfaceNumber = iface.interfaceNumber;
-                        break;
-                    }
-                }
-                if (endpointOut) break;
-            }
-            if (endpointOut) break;
-        }
-
-        if (!endpointOut || interfaceNumber === null) {
-            throw new Error("Tidak menemukan port output data (Bulk OUT endpoint) pada printer ini.");
-        }
-
-        // Claim the interface
-        await device.claimInterface(interfaceNumber);
-
-        // Save global references
-        connectedDevice = device;
-        selectedEndpointOut = endpointOut;
-        claimedInterfaceNumber = interfaceNumber;
-
-        // Send Printer Initialization command (ESC @)
-        const initCmd = new Uint8Array([ESC, 0x40]);
-        await device.transferOut(endpointOut.endpointNumber, initCmd);
-
-        return {
-            name: device.productName || "Epson Thermal Printer",
-            vendorId: device.vendorId,
-            productId: device.productId,
-        };
+        return await setupDevice(device);
     } catch (err: any) {
         console.error("USB Printer connection error:", err);
         throw new Error(err.message || "Gagal menghubungkan printer.");

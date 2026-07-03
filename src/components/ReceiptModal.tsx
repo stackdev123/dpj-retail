@@ -11,6 +11,7 @@ import {
   disconnectPrinter,
   printDirectEscPos,
   PrinterDevice,
+  autoConnectPrinter,
 } from "../utils/printer";
 
 interface ReceiptModalProps {
@@ -70,6 +71,49 @@ export default function ReceiptModal({
       printerError.toLowerCase().includes("access denied") ||
       printerError.toLowerCase().includes("failed to execute 'open'") ||
       printerError.toLowerCase().includes("akses printer ditolak");
+
+    const isUnableToClaim =
+      printerError.toLowerCase().includes("unable to claim interface") ||
+      printerError.toLowerCase().includes("gagal mengklaim antarmuka") ||
+      printerError.toLowerCase().includes("claiminterface");
+
+    if (isUnableToClaim) {
+      return (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left animate-in fade-in duration-200">
+          <div className="flex items-start gap-2 mb-3">
+            <AlertCircle className="w-4.5 h-4.5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h5 className="font-bold text-xs text-amber-800 uppercase tracking-tight">
+                Port Printer Terkunci (Unable to claim interface)
+              </h5>
+              <p className="text-[10px] text-amber-700 font-medium leading-relaxed mt-0.5">
+                Koneksi printer USB sedang digunakan atau dikunci oleh proses lain di komputer Anda.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="bg-white border border-amber-100 rounded-lg p-2.5 shadow-xs">
+              <span className="font-bold text-[11px] text-slate-800 block mb-1">💡 Cara Mengatasi:</span>
+              <ul className="list-disc pl-4 text-[10px] text-slate-600 font-medium space-y-1">
+                <li>
+                  Tutup tab browser lain atau aplikasi kasir lain yang mungkin sedang terhubung ke printer.
+                </li>
+                <li>
+                  Matikan printer thermal Anda selama 3 detik, lalu nyalakan kembali untuk mereset koneksi internal printer.
+                </li>
+                <li>
+                  Klik tombol <b className="text-blue-700">"Hubungkan Printer USB"</b> kembali.
+                </li>
+                <li>
+                  Jika Anda menggunakan Windows dan belum mengganti driver ke <b className="font-bold">WinUSB</b> melalui aplikasi <b className="font-bold text-blue-700">Zadig</b>, ikuti petunjuk Solusi 2 di bawah.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     if (isAccessDenied) {
       return (
@@ -177,6 +221,20 @@ export default function ReceiptModal({
       setIsPrintingDirect(false);
     }
   };
+
+  useEffect(() => {
+    if (isWebUSBSupported() && !connectedPrinter) {
+      autoConnectPrinter()
+        .then((dev) => {
+          if (dev) {
+            setConnectedPrinter(dev);
+          }
+        })
+        .catch((err) => {
+          console.warn("Auto-connect failed on modal load:", err);
+        });
+    }
+  }, []);
 
   useEffect(() => {
     const fetchDebt = async () => {
@@ -612,7 +670,7 @@ export default function ReceiptModal({
     doc.text("Barang yang sudah dibeli tidak dapat ditukar/dikembalikan", 40, y, { align: "center" });
     y += 4.5;
     doc.setFontSize(6.5);
-    doc.text("Sistem Kasir v1.0 | CV DPJ Berkah Unggas", 40, y, { align: "center" });
+    doc.text("Sistem Kasir CV DPJ Berkah Unggas", 40, y, { align: "center" });
 
     doc.save(`Struk_${transaction.invoiceNumber}.pdf`);
   };
@@ -745,7 +803,7 @@ export default function ReceiptModal({
                 {transaction.paymentMethod === "mix" && (
                   <>
                     <div className="flex justify-between text-slate-500 pl-4">
-                      <span>- Cash / Tunai:</span>
+                      <span>- Cash :</span>
                       <span className="text-slate-800">{formatRupiah(transaction.cashAmount || 0)}</span>
                     </div>
                     <div className="flex justify-between text-slate-500 pl-4">
@@ -777,7 +835,7 @@ export default function ReceiptModal({
                       )}
                       {totalCustomerDebt > 0 && (
                         <div className="flex justify-between text-slate-950 font-black pt-1 border-t border-dashed border-slate-300">
-                          <span>Total Semua Utang:</span>
+                          <span>Total Utang:</span>
                           <span>{formatRupiah(totalCustomerDebt)}</span>
                         </div>
                       )}

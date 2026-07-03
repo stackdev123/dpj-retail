@@ -9,6 +9,7 @@ import UserManager from './components/UserManager';
 import Login from './components/Login';
 import { AppUser } from './types';
 import { db } from './utils/db';
+import { autoConnectPrinter } from './utils/printer';
 import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw, Crown, ChevronDown } from 'lucide-react';
 
 type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'database' | 'activity_logs' | 'users_management';
@@ -104,6 +105,13 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('dpj_active_menu', activeMenu);
   }, [activeMenu]);
+
+  // Auto-connect to previously paired USB printers on application startup
+  useEffect(() => {
+    autoConnectPrinter().catch((err) => {
+      console.warn("Auto-connect to paired printer failed:", err);
+    });
+  }, []);
 
   // Check login session on mount
   useEffect(() => {
