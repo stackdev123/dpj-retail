@@ -37,6 +37,7 @@ export interface Transaction {
   date: string; // ISO String
   printCount: number; // 0 = not printed yet, 1 = first print, >=2 = reprinted
   notes?: string;
+  // For mixed (cash + transfer) payments only
   cashAmount?: number;
   transferAmount?: number;
 }

@@ -868,11 +868,31 @@ export const db = {
   ): Promise<void> {
     const timestamp = new Date().toISOString();
     const id = `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Automatically append currently logged-in user to description for CREATE, EDIT, DELETE, RESET
+    let finalDescription = description;
+    if (action === "CREATE" || action === "EDIT" || action === "DELETE" || action === "RESET") {
+      try {
+        const savedUser = localStorage.getItem("dpj_current_user");
+        if (savedUser) {
+          const user = JSON.parse(savedUser) as AppUser;
+          if (user) {
+            const operatorName = user.fullname || user.username;
+            if (operatorName && !description.includes("(oleh:")) {
+              finalDescription = `${description} (oleh: ${operatorName})`;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to retrieve current user for activity log:", e);
+      }
+    }
+
     const newLog: ActivityLog = {
       id,
       action,
       module,
-      description,
+      description: finalDescription,
       timestamp,
     };
 
@@ -881,7 +901,7 @@ export const db = {
         id,
         action,
         module,
-        description,
+        description: finalDescription,
         created_at: timestamp,
       });
       if (!error) {
@@ -1259,25 +1279,6 @@ export const db = {
       const diffMs = now.getTime() - lastActive.getTime();
       return diffMs < 2 * 60 * 1000;
     });
-
-    // Simulation for aesthetic liveliness
-    if (onlineUsers.length === 1) {
-      const currentUser = onlineUsers[0];
-      const allUsers = await this.getUsers();
-      const otherUsers = allUsers.filter((u) => u.id !== currentUser.id);
-
-      if (otherUsers.length > 0) {
-        const simUser = otherUsers[0];
-        onlineUsers.push({
-          id: simUser.id,
-          username: simUser.username,
-          fullname: simUser.fullname,
-          role: simUser.role,
-          lastActive: new Date(now.getTime() - 45 * 1000).toISOString(),
-          isSimulated: true,
-        });
-      }
-    }
 
     return onlineUsers;
   },

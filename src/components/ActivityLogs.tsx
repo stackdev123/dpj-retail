@@ -296,28 +296,30 @@ export default function ActivityLogs({ currentUser }: ActivityLogsProps) {
 
             {/* CONFIRM CLEAR MODAL */}
             {confirmClearOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border-t-4 border-red-500">
-                        <h4 className="font-black text-slate-900 text-sm mb-2 tracking-tight uppercase">
-                            Hapus Riwayat Log Aktivitas?
-                        </h4>
-                        <p className="text-xs text-slate-500 mb-4 font-medium leading-relaxed">
-                            Tindakan ini akan menghapus permanen seluruh riwayat log aktivitas yang tersimpan. Log audit tidak dapat dikembalikan lagi.
-                        </p>
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => setConfirmClearOpen(false)}
-                                className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                id="clear-logs-confirm-btn"
-                                onClick={handleClearLogs}
-                                className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition cursor-pointer"
-                            >
-                                Hapus Sekarang
-                            </button>
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="flex min-h-full items-center justify-center">
+                        <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border-t-4 border-red-500 my-8">
+                            <h4 className="font-black text-slate-900 text-sm mb-2 tracking-tight uppercase">
+                                Hapus Riwayat Log Aktivitas?
+                            </h4>
+                            <p className="text-xs text-slate-500 mb-4 font-medium leading-relaxed">
+                                Tindakan ini akan menghapus permanen seluruh riwayat log aktivitas yang tersimpan. Log audit tidak dapat dikembalikan lagi.
+                            </p>
+                            <div className="flex justify-end gap-2">
+                                <button
+                                    onClick={() => setConfirmClearOpen(false)}
+                                    className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    id="clear-logs-confirm-btn"
+                                    onClick={handleClearLogs}
+                                    className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition cursor-pointer"
+                                >
+                                    Hapus Sekarang
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

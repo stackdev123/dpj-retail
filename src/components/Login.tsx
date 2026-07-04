@@ -5,9 +5,10 @@ import { Landmark, Lock, User, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface LoginProps {
     onLoginSuccess: (user: AppUser) => void;
+    sessionExpiredMessage?: string | null;
 }
 
-export default function Login({ onLoginSuccess }: LoginProps) {
+export default function Login({ onLoginSuccess, sessionExpiredMessage }: LoginProps) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
@@ -108,6 +109,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 </div>
 
                 {/* Status Messages */}
+                {sessionExpiredMessage && !error && !success && (
+                    <div className="mb-5 flex items-start gap-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5 text-xs text-amber-400 font-bold animate-in fade-in">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                        <span>{sessionExpiredMessage}</span>
+                    </div>
+                )}
+
                 {error && (
                     <div className="mb-5 flex items-start gap-2.5 rounded-xl bg-red-500/10 border border-red-500/20 p-3.5 text-xs text-red-400 font-medium animate-in fade-in">
                         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />

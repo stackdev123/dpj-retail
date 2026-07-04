@@ -275,94 +275,96 @@ export default function UserManager({ currentUser }: UserManagerProps) {
 
             {/* CREATE OR EDIT MODAL */}
             {isFormOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border-t-4 border-red-500 animate-in zoom-in-95 duration-150">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-50">
-                            <h4 className="font-black text-slate-900 text-sm tracking-tight uppercase flex items-center gap-2">
-                                <Users className="w-4 h-4 text-red-600" />
-                                {editingUser ? "Edit Detail Pengguna" : "Tambah Pengguna Baru"}
-                            </h4>
-                            <button
-                                onClick={() => setIsFormOpen(false)}
-                                className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSave} className="space-y-4">
-                            <div className="space-y-1">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                    Nama Lengkap
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Nama lengkap kasir/admin"
-                                    value={fullname}
-                                    onChange={(e) => setFullname(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none"
-                                />
-                            </div>
-
-                            <div className="space-y-1">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                    Username Login
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Contoh: siska_kasir"
-                                    disabled={!!editingUser}
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                                />
-                            </div>
-
-                            <div className="space-y-1">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                    Password Akun
-                                </label>
-                                <input
-                                    type="password"
-                                    placeholder="Password untuk masuk"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none"
-                                />
-                            </div>
-
-                            <div className="space-y-1">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                    Hak Akses / Role
-                                </label>
-                                <select
-                                    value={role}
-                                    onChange={(e) => setRole(e.target.value as "superadmin" | "admin" | "kasir")}
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none"
-                                >
-                                    <option value="kasir">Kasir (Transaksi & Laporan)</option>
-                                    <option value="admin">Administrator (Akses Penuh)</option>
-                                    <option value="superadmin">Super Administrator (Kelola Pengguna & Bersihkan Log)</option>
-                                </select>
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-3">
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="flex min-h-full items-center justify-center">
+                        <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border-t-4 border-red-500 animate-in zoom-in-95 duration-150 my-8">
+                            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-50">
+                                <h4 className="font-black text-slate-900 text-sm tracking-tight uppercase flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-red-600" />
+                                    {editingUser ? "Edit Detail Pengguna" : "Tambah Pengguna Baru"}
+                                </h4>
                                 <button
-                                    type="button"
                                     onClick={() => setIsFormOpen(false)}
-                                    className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+                                    className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
                                 >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <Save className="w-3.5 h-3.5" />
-                                    Simpan
+                                    <X className="w-4 h-4" />
                                 </button>
                             </div>
-                        </form>
+
+                            <form onSubmit={handleSave} className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Nama Lengkap
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Nama lengkap kasir/admin"
+                                        value={fullname}
+                                        onChange={(e) => setFullname(e.target.value)}
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Username Login
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: siska_kasir"
+                                        disabled={!!editingUser}
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value)}
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Password Akun
+                                    </label>
+                                    <input
+                                        type="password"
+                                        placeholder="Password untuk masuk"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Hak Akses / Role
+                                    </label>
+                                    <select
+                                        value={role}
+                                        onChange={(e) => setRole(e.target.value as "superadmin" | "admin" | "kasir")}
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none"
+                                    >
+                                        <option value="kasir">Kasir (Transaksi & Laporan)</option>
+                                        <option value="admin">Administrator (Akses Penuh)</option>
+                                        <option value="superadmin">Super Administrator (Kelola Pengguna & Bersihkan Log)</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsFormOpen(false)}
+                                        className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <Save className="w-3.5 h-3.5" />
+                                        Simpan
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             )}

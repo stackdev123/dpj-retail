@@ -25,7 +25,10 @@ import {
   Search,
   Shuffle,
   History,
+<<<<<<< HEAD
   Move,
+=======
+>>>>>>> a1dab1180b8976e20065e28a46e154f8ef3b4569
 } from "lucide-react";
 
 export default function Cashier() {
@@ -527,6 +530,7 @@ export default function Cashier() {
               >
                 <History className="w-3.5 h-3.5" /> History Harga
               </button>
+<<<<<<< HEAD
               {hasCustomOrder && (
                 <button
                   type="button"
@@ -537,6 +541,8 @@ export default function Cashier() {
                   <Shuffle className="w-3.5 h-3.5 text-slate-400" /> Reset Urutan
                 </button>
               )}
+=======
+>>>>>>> a1dab1180b8976e20065e28a46e154f8ef3b4569
               {tableItems.some(r => (Number(r.quantity) || 0) > 0) && (
                 <button
                   type="button"
