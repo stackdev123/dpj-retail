@@ -223,6 +223,7 @@ export const db = {
         notes: notes || undefined,
         cashAmount,
         transferAmount,
+        usePenerimaan: tx.use_penerimaan || false,
         items: tx.transaction_items.map((item: any) => ({
           itemId: item.item_id,
           name: item.name,
@@ -230,6 +231,7 @@ export const db = {
           quantity: Number(item.quantity),
           subtotal: Number(item.subtotal),
           unit: item.unit,
+          receivedQuantity: item.received_quantity !== null && item.received_quantity !== undefined ? Number(item.received_quantity) : undefined,
         })),
       };
     });
@@ -257,6 +259,7 @@ export const db = {
       date: transaction.date,
       print_count: transaction.printCount || 0,
       notes: notes || null,
+      use_penerimaan: transaction.usePenerimaan || false,
     };
 
     // Insert transaction
@@ -280,6 +283,7 @@ export const db = {
       quantity: item.quantity,
       subtotal: item.subtotal,
       unit: item.unit,
+      received_quantity: item.receivedQuantity !== undefined ? item.receivedQuantity : null,
     }));
 
     await supabase.from("transaction_items").insert(itemsPayload);
@@ -982,6 +986,7 @@ export const db = {
       amount_paid: transaction.amountPaid,
       remaining_debt: remainingDebt,
       notes: notes || null,
+      use_penerimaan: transaction.usePenerimaan || false,
     };
 
     // 4. Update transaction
@@ -1013,6 +1018,7 @@ export const db = {
       quantity: item.quantity,
       subtotal: item.subtotal,
       unit: item.unit,
+      received_quantity: item.receivedQuantity !== undefined ? item.receivedQuantity : null,
     }));
 
     const { error: insError } = await supabase

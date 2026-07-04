@@ -52,6 +52,30 @@ export default function Cashier() {
 
   // Checkout Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState("cust-1"); // Default Pelanggan Umum
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [isCustDropdownOpen, setIsCustDropdownOpen] = useState(false);
+  const selectedCustomerObj = customers.find((c) => c.id === selectedCustomerId);
+
+  useEffect(() => {
+    if (selectedCustomerObj) {
+      setCustomerSearchQuery(selectedCustomerObj.name);
+    }
+  }, [selectedCustomerId, customers]);
+
+  const filteredCustomersForSelect = customers.filter((c) =>
+    c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+    (c.phone && c.phone.toLowerCase().includes(customerSearchQuery.toLowerCase()))
+  );
+
+  const handleCustBlur = () => {
+    setTimeout(() => {
+      setIsCustDropdownOpen(false);
+      if (selectedCustomerObj) {
+        setCustomerSearchQuery(selectedCustomerObj.name);
+      }
+    }, 150);
+  };
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState<number | "">("");
   const [transactionNotes, setTransactionNotes] = useState("");
@@ -625,36 +649,14 @@ export default function Cashier() {
                       >
                         {/* Reorder Buttons */}
                         <td className="py-2 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                          <div className="flex items-center justify-center">
                             {filterQuery === "" ? (
                               <div className="p-1 text-slate-300 hover:text-slate-500 transition cursor-grab" title="Geser (Drag & Drop) untuk mengubah urutan">
                                 <Move className="w-3.5 h-3.5" />
                               </div>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => handleMoveItem(row.originalIndex, "up")}
-                              disabled={row.originalIndex === 0 || filterQuery !== ""}
-                              className={`p-1 rounded transition duration-150 ${row.originalIndex === 0 || filterQuery !== ""
-                                  ? "text-slate-200 cursor-not-allowed"
-                                  : "text-slate-500 hover:text-red-600 hover:bg-slate-100 cursor-pointer"
-                                }`}
-                              title={filterQuery !== "" ? "Urutan hanya dapat diubah tanpa filter pencarian" : "Pindahkan ke atas"}
-                            >
-                              <ChevronUp className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleMoveItem(row.originalIndex, "down")}
-                              disabled={row.originalIndex === tableItems.length - 1 || filterQuery !== ""}
-                              className={`p-1 rounded transition duration-150 ${row.originalIndex === tableItems.length - 1 || filterQuery !== ""
-                                  ? "text-slate-200 cursor-not-allowed"
-                                  : "text-slate-500 hover:text-red-600 hover:bg-slate-100 cursor-pointer"
-                                }`}
-                              title={filterQuery !== "" ? "Urutan hanya dapat diubah tanpa filter pencarian" : "Pindahkan ke bawah"}
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
                           </div>
                         </td>
 
@@ -697,7 +699,7 @@ export default function Cashier() {
                                 handleRowChange(row.originalIndex, "price", e.target.value)
                               }
                               onKeyDown={(e) => handleKeyDown(e, visibleIndex, "price")}
-                              className="w-28 px-2 py-1.5 pl-7 text-right font-mono font-bold text-slate-700 bg-white border border-slate-200 rounded-lg focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all duration-200"
+                              className="w-28 px-2 py-1.5 pl-7 text-right font-mono font-bold text-slate-700 bg-white border border-slate-200 rounded-lg focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         </td>
@@ -716,7 +718,7 @@ export default function Cashier() {
                                 handleRowChange(row.originalIndex, "quantity", e.target.value)
                               }
                               onKeyDown={(e) => handleKeyDown(e, visibleIndex, "quantity")}
-                              className={`w-[60px] px-2 py-1.5 text-center font-mono font-extrabold rounded-lg border outline-none transition-all duration-200 ${isSelected
+                              className={`w-[60px] px-2 py-1.5 text-center font-mono font-extrabold rounded-lg border outline-none transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isSelected
                                   ? "text-red-700 border-red-300 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500"
                                   : "text-slate-800 border-slate-200 bg-white focus:border-red-500 focus:ring-1 focus:ring-red-500"
                                 }`}
@@ -794,20 +796,64 @@ export default function Cashier() {
             </div>
 
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <select
-                id="cashier-customer-select"
-                value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none transition-all duration-200"
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+              <input
+                id="cashier-customer-search-input"
+                type="text"
+                value={customerSearchQuery}
+                onChange={(e) => {
+                  setCustomerSearchQuery(e.target.value);
+                  setIsCustDropdownOpen(true);
+                }}
+                onFocus={() => setIsCustDropdownOpen(true)}
+                onBlur={handleCustBlur}
+                placeholder="Cari nama pelanggan..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-8 text-xs font-bold text-slate-900 focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none transition-all duration-200"
+              />
+              <button
+                type="button"
+                onClick={() => setIsCustDropdownOpen(!isCustDropdownOpen)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
               >
-                {customers.map((cust) => (
-                  <option key={cust.id} value={cust.id}>
-                    {cust.name}{" "}
-                    {cust.phone && cust.phone !== "-" ? `(${cust.phone})` : ""}
-                  </option>
-                ))}
-              </select>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              {isCustDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg z-50">
+                  {filteredCustomersForSelect.length > 0 ? (
+                    filteredCustomersForSelect.map((cust) => {
+                      const isSelected = cust.id === selectedCustomerId;
+                      return (
+                        <button
+                          key={cust.id}
+                          type="button"
+                          onMouseDown={() => {
+                            setSelectedCustomerId(cust.id);
+                            setCustomerSearchQuery(cust.name);
+                            setIsCustDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors flex items-center justify-between ${isSelected
+                              ? "bg-red-50 text-red-600 font-extrabold"
+                              : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                            }`}
+                        >
+                          <span>
+                            {cust.name}{" "}
+                            {cust.phone && cust.phone !== "-" ? `(${cust.phone})` : ""}
+                          </span>
+                          {isSelected && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-red-600 shrink-0 ml-2" />
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="px-4 py-2 text-xs text-slate-400 font-bold">
+                      Tidak ada pelanggan cocok
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

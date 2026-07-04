@@ -37,6 +37,39 @@ export default function DebtLedger() {
   // Navigation tab
   const [tab, setTab] = useState<"detail" | "rekap">("detail");
 
+  const [expandedDates, setExpandedDates] = useState<{ [key: string]: boolean }>({});
+
+  const getLocalDateString = (isoString: string) => {
+    if (!isoString) return "";
+    const d = new Date(isoString);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatTime = (isoString: string) => {
+    if (!isoString) return "";
+    const d = new Date(isoString);
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const getEntryLabel = (entry: any) => {
+    const timeStr = formatTime(entry.date);
+    const refStr = entry.reference ? `${entry.reference}` : "";
+    const descStr = entry.description ? `(${entry.description})` : "";
+    return `${timeStr} - ${refStr} ${descStr}`;
+  };
+
+  const toggleDateExpanded = (dateKey: string) => {
+    setExpandedDates((prev) => ({
+      ...prev,
+      [dateKey]: !prev[dateKey],
+    }));
+  };
+
   // Selected customer for Ledger Detail view
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
@@ -126,6 +159,11 @@ export default function DebtLedger() {
       setSelectedCustomerId(customers[0].id);
     }
   }, [customers, selectedCustomerId]);
+
+  // Reset expanded dates when customer changes
+  useEffect(() => {
+    setExpandedDates({});
+  }, [selectedCustomerId]);
 
   const handleRefresh = () => {
     loadData();
@@ -1202,62 +1240,155 @@ export default function DebtLedger() {
                           Tidak ada riwayat transaksi pada periode ini.
                         </td>
                       </tr>
-                    ) : (
-                      ledgerEntries.map((entry) => {
-                        const isSale = entry.type === "sale";
-                        const debitVal = entry.debit > 0 ? entry.debit : 0;
-
-                        let creditTrf = 0;
-                        let creditCash = 0;
-
-                        if (isSale) {
-                          if (entry.paymentMethod === "transfer") {
-                            creditTrf = entry.credit;
-                          } else if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") {
-                            creditCash = entry.credit;
-                          } else if (entry.paymentMethod === "mix") {
-                            creditTrf = entry.transferAmount || 0;
-                            creditCash = entry.cashAmount || 0;
-                          }
-                        } else {
-                          if (entry.paymentMethod === "transfer") {
-                            creditTrf = entry.credit;
-                          } else if (entry.paymentMethod === "cash") {
-                            creditCash = entry.credit;
-                          }
+                    ) : (() => {
+                      const groups: { [key: string]: any[] } = {};
+                      ledgerEntries.forEach((entry) => {
+                        const key = getLocalDateString(entry.date);
+                        if (!groups[key]) {
+                          groups[key] = [];
                         }
+                        groups[key].push(entry);
+                      });
+
+                      const uniqueKeys: string[] = [];
+                      ledgerEntries.forEach((entry) => {
+                        const key = getLocalDateString(entry.date);
+                        if (!uniqueKeys.includes(key)) {
+                          uniqueKeys.push(key);
+                        }
+                      });
+
+                      return uniqueKeys.map((key) => {
+                        const entriesInGroup = groups[key];
+                        let sumDebit = 0;
+                        let sumCreditTrf = 0;
+                        let sumCreditCash = 0;
+
+                        entriesInGroup.forEach((entry) => {
+                          const isSale = entry.type === "sale";
+                          const debitVal = entry.debit > 0 ? entry.debit : 0;
+                          sumDebit += debitVal;
+
+                          let creditTrf = 0;
+                          let creditCash = 0;
+
+                          if (isSale) {
+                            if (entry.paymentMethod === "transfer") {
+                              creditTrf = entry.credit;
+                            } else if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") {
+                              creditCash = entry.credit;
+                            } else if (entry.paymentMethod === "mix") {
+                              creditTrf = entry.transferAmount || 0;
+                              creditCash = entry.cashAmount || 0;
+                            }
+                          } else {
+                            if (entry.paymentMethod === "transfer") {
+                              creditTrf = entry.credit;
+                            } else if (entry.paymentMethod === "cash") {
+                              creditCash = entry.credit;
+                            }
+                          }
+
+                          sumCreditTrf += creditTrf;
+                          sumCreditCash += creditCash;
+                        });
+
+                        const lastEntry = entriesInGroup[entriesInGroup.length - 1];
+                        const runningBalance = lastEntry.runningBalance;
+                        const isExpanded = !!expandedDates[key];
 
                         return (
-                          <tr key={entry.id} className="hover:bg-slate-50/40 transition-all">
+                          <React.Fragment key={key}>
+                            <tr className="hover:bg-slate-50/40 transition-all">
+                              {/* TANGGAL: Clickable and shows drop down status */}
+                              <td
+                                onClick={() => toggleDateExpanded(key)}
+                                className="py-4 px-3 text-center text-xs font-black text-indigo-600 border-r border-slate-950 uppercase tracking-wide cursor-pointer hover:bg-indigo-50/60 transition-colors select-none"
+                                title="Klik untuk detail transaksi"
+                              >
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span>{formatLedgerDate(lastEntry.date)}</span>
+                                  <span className="text-[9px] text-indigo-400 font-bold">
+                                    {isExpanded ? "▲" : "▼"}
+                                  </span>
+                                </div>
+                              </td>
 
-                            {/* TANGGAL: Colored indigo/blue as in screenshot */}
-                            <td className="py-4 px-3 text-center text-xs font-black text-indigo-600 border-r border-slate-950 uppercase tracking-wide">
-                              {formatLedgerDate(entry.date)}
-                            </td>
+                              {/* DEBIT (BELI) */}
+                              <td className="py-4 px-3 text-center text-xs sm:text-sm font-bold text-slate-900 font-mono border-r border-slate-950">
+                                {sumDebit > 0 ? formatRupiah(sumDebit) : "-"}
+                              </td>
 
-                            {/* DEBIT (BELI) */}
-                            <td className="py-4 px-3 text-center text-xs sm:text-sm font-bold text-slate-900 font-mono border-r border-slate-950">
-                              {debitVal > 0 ? formatRupiah(debitVal) : "-"}
-                            </td>
+                              {/* KREDIT (TRF) */}
+                              <td className="py-4 px-3 text-center text-xs sm:text-sm font-bold text-slate-900 font-mono border-r border-slate-950">
+                                {sumCreditTrf > 0 ? formatRupiah(sumCreditTrf) : "-"}
+                              </td>
 
-                            {/* KREDIT (TRF) */}
-                            <td className="py-4 px-3 text-center text-xs sm:text-sm font-bold text-slate-900 font-mono border-r border-slate-950">
-                              {creditTrf > 0 ? formatRupiah(creditTrf) : "-"}
-                            </td>
+                              {/* KREDIT (CASH) */}
+                              <td className="py-4 px-3 text-center text-xs sm:text-sm font-bold text-slate-900 font-mono border-r border-slate-950">
+                                {sumCreditCash > 0 ? formatRupiah(sumCreditCash) : "-"}
+                              </td>
 
-                            {/* KREDIT (CASH) */}
-                            <td className="py-4 px-3 text-center text-xs sm:text-sm font-bold text-slate-900 font-mono border-r border-slate-950">
-                              {creditCash > 0 ? formatRupiah(creditCash) : "-"}
-                            </td>
+                              {/* SALDO AKHIR */}
+                              <td className="py-4 px-3 text-center text-xs sm:text-sm font-bold text-slate-900 font-mono">
+                                {runningBalance === 0 ? "-" : formatRupiah(runningBalance)}
+                              </td>
+                            </tr>
 
-                            {/* SALDO AKHIR */}
-                            <td className="py-4 px-3 text-center text-xs sm:text-sm font-bold text-slate-900 font-mono">
-                              {entry.runningBalance === 0 ? "-" : formatRupiah(entry.runningBalance)}
-                            </td>
-                          </tr>
+                            {/* EXPANDED DETAILS FOR THE DATE */}
+                            {isExpanded && entriesInGroup.map((entry, subIdx) => {
+                              const isSaleSub = entry.type === "sale";
+                              const debitSubVal = entry.debit > 0 ? entry.debit : 0;
+
+                              let creditTrfSub = 0;
+                              let creditCashSub = 0;
+
+                              if (isSaleSub) {
+                                if (entry.paymentMethod === "transfer") {
+                                  creditTrfSub = entry.credit;
+                                } else if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") {
+                                  creditCashSub = entry.credit;
+                                } else if (entry.paymentMethod === "mix") {
+                                  creditTrfSub = entry.transferAmount || 0;
+                                  creditCashSub = entry.cashAmount || 0;
+                                }
+                              } else {
+                                if (entry.paymentMethod === "transfer") {
+                                  creditTrfSub = entry.credit;
+                                } else if (entry.paymentMethod === "cash") {
+                                  creditCashSub = entry.credit;
+                                }
+                              }
+
+                              return (
+                                <tr key={`${entry.id}-${subIdx}`} className="bg-slate-50/60 hover:bg-slate-100/60 transition-all text-slate-500">
+                                  <td className="py-2.5 px-3 border-r border-slate-950">
+                                    <div className="flex items-center gap-1.5 pl-3 text-[11px] font-medium font-sans text-left text-slate-500">
+                                      <span className="text-indigo-400 font-bold">↳</span>
+                                      <span className="truncate max-w-[150px] sm:max-w-[200px]" title={getEntryLabel(entry)}>
+                                        {getEntryLabel(entry)}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
+                                    {debitSubVal > 0 ? formatRupiah(debitSubVal) : "-"}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
+                                    {creditTrfSub > 0 ? formatRupiah(creditTrfSub) : "-"}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
+                                    {creditCashSub > 0 ? formatRupiah(creditCashSub) : "-"}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500">
+                                    {entry.runningBalance === 0 ? "-" : formatRupiah(entry.runningBalance)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
                         );
-                      })
-                    )}
+                      });
+                    })()}
 
                     {/* REKAPITULASI SUMMARY ROW EXACTLY LIKE USER'S IMAGE */}
                     <tr className="bg-slate-50/50 border-t-2 border-slate-950 font-black">

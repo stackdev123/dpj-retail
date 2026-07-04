@@ -440,7 +440,16 @@ export default function ReceiptModal({
 
     transaction.items.forEach((item, index) => {
       const line1 = `${index + 1}. ${item.name}`;
-      const qtyStr = `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`;
+      let qtyStr = "";
+      if (transaction.usePenerimaan) {
+        const qtyTerima =
+          item.receivedQuantity !== undefined && item.receivedQuantity !== null
+            ? item.receivedQuantity
+            : item.quantity;
+        qtyStr = `Trm: ${qtyTerima} ${item.unit} x ${formatRupiah(item.price)} (Krm: ${item.quantity})`;
+      } else {
+        qtyStr = `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`;
+      }
       const subTotalStr = formatRupiah(item.subtotal);
 
       txt += `${line1}\n`;
@@ -589,11 +598,20 @@ export default function ReceiptModal({
 
       // Item Qty x Price
       doc.setFont("Courier", "normal");
-      doc.text(
-        `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
-        8,
-        y
-      );
+      if (transaction.usePenerimaan) {
+        const qtyTerima =
+          item.receivedQuantity !== undefined && item.receivedQuantity !== null
+            ? item.receivedQuantity
+            : item.quantity;
+        let textLine = `Trm: ${qtyTerima} ${item.unit} x ${formatRupiah(item.price)} (Krm: ${item.quantity})`;
+        doc.text(textLine, 8, y);
+      } else {
+        doc.text(
+          `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
+          8,
+          y
+        );
+      }
       y += 5;
     });
 
@@ -799,8 +817,34 @@ export default function ReceiptModal({
                         <div className="text-slate-900 font-black">
                           {item.name}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-bold mt-0.5">
-                          {item.quantity} {item.unit} x {formatRupiah(item.price)}
+                        <div className="text-[10px] mt-0.5 font-bold">
+                          {transaction.usePenerimaan ? (
+                            (() => {
+                              const qtyTerima =
+                                item.receivedQuantity !== undefined &&
+                                  item.receivedQuantity !== null
+                                  ? item.receivedQuantity
+                                  : item.quantity;
+                              const susut = Math.max(0, item.quantity - qtyTerima);
+                              return (
+                                <div className="text-slate-600">
+                                  <span className="text-emerald-700 font-black">
+                                    Trm: {qtyTerima} {item.unit}
+                                  </span>{" "}
+                                  <span className="text-slate-400 font-normal">
+                                    x {formatRupiah(item.price)}
+                                  </span>{" "}
+                                  <span className="text-slate-400 font-normal">
+                                    (Krm: {item.quantity})
+                                  </span>
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <span className="text-slate-400">
+                              {item.quantity} {item.unit} x {formatRupiah(item.price)}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-2 text-right text-slate-900">

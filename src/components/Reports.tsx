@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Edit,
   Trash2,
+  ChevronDown,
 } from "lucide-react";
 
 export default function Reports() {
@@ -32,14 +33,46 @@ export default function Reports() {
 
   // Filters State
   const [filterQuery, setFilterQuery] = useState("");
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const [filterMethod, setFilterMethod] = useState<string>("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const filteredCustomersForSearch = customers.filter((cust) =>
+    cust.name.toLowerCase().includes(filterQuery.toLowerCase())
+  );
 
   // Selected transaction to reprint or edit or delete
   const [reprintTx, setReprintTx] = useState<Transaction | null>(null);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [confirmDeleteTx, setConfirmDeleteTx] = useState<Transaction | null>(null);
+  const [penerimaanTx, setPenerimaanTx] = useState<Transaction | null>(null);
+  const [editingPenerimaan, setEditingPenerimaan] = useState<Transaction | null>(null);
+
+  useEffect(() => {
+    if (penerimaanTx) {
+      const copy = JSON.parse(JSON.stringify(penerimaanTx));
+      copy.usePenerimaan = true;
+      copy.items = copy.items.map((item: any) => {
+        const qtyTerima = item.receivedQuantity !== undefined && item.receivedQuantity !== null
+          ? item.receivedQuantity
+          : item.quantity;
+        return {
+          ...item,
+          receivedQuantity: qtyTerima,
+          subtotal: qtyTerima * item.price,
+        };
+      });
+      const newTotal = copy.items.reduce((sum: number, item: any) => sum + item.subtotal, 0);
+      copy.totalAmount = newTotal;
+      if (copy.remainingDebt > 0 || copy.paymentMethod === "debt") {
+        copy.remainingDebt = Math.max(0, newTotal - copy.amountPaid);
+      }
+      setEditingPenerimaan(copy);
+    } else {
+      setEditingPenerimaan(null);
+    }
+  }, [penerimaanTx]);
 
   const loadData = async () => {
     const [txs, custs, summaries] = await Promise.all([
@@ -59,6 +92,18 @@ export default function Reports() {
       setConfirmDeleteTx(null);
     } catch (e) {
       alert("Gagal menghapus transaksi.");
+    }
+  };
+
+  const handleSavePenerimaan = async () => {
+    if (!editingPenerimaan) return;
+    try {
+      await db.editTransaction(editingPenerimaan);
+      setPenerimaanTx(null);
+      setEditingPenerimaan(null);
+      loadData();
+    } catch (e) {
+      alert("Gagal menyimpan perubahan penerimaan.");
     }
   };
 
@@ -124,10 +169,37 @@ export default function Reports() {
       const totalTransactions = custTxs.length;
       const totalSpent = custTxs.reduce((sum, t) => sum + t.totalAmount, 0);
 
+      const qtyKirimMap = new Map<string, number>();
+      const qtyTerimaMap = new Map<string, number>();
+
+      custTxs.forEach((t) => {
+        t.items.forEach((item) => {
+          const qtyKirim = item.quantity;
+          const qtyTerima =
+            item.receivedQuantity !== undefined && item.receivedQuantity !== null
+              ? item.receivedQuantity
+              : item.quantity;
+          const unit = item.unit || "Kg";
+
+          qtyKirimMap.set(unit, (qtyKirimMap.get(unit) || 0) + qtyKirim);
+          qtyTerimaMap.set(unit, (qtyTerimaMap.get(unit) || 0) + qtyTerima);
+        });
+      });
+
+      const qtyKirimStr = Array.from(qtyKirimMap.entries())
+        .map(([unit, qty]) => `${qty.toFixed(2)} ${unit}`)
+        .join(", ") || "-";
+
+      const qtyTerimaStr = Array.from(qtyTerimaMap.entries())
+        .map(([unit, qty]) => `${qty.toFixed(2)} ${unit}`)
+        .join(", ") || "-";
+
       return {
         ...summary,
         totalTransactions,
         totalSpent,
+        qtyKirimStr,
+        qtyTerimaStr,
       };
     })
     .filter((report) =>
@@ -138,7 +210,16 @@ export default function Reports() {
   const dailyItemSales = (() => {
     const dailyMap = new Map<
       string,
-      Map<string, { quantity: number; unit: string; totalAmount: number }>
+      Map<
+        string,
+        {
+          qtyKirim: number;
+          qtyTerima: number;
+          susut: number;
+          unit: string;
+          totalAmount: number;
+        }
+      >
     >();
 
     filteredTransactions.forEach((tx) => {
@@ -152,15 +233,26 @@ export default function Reports() {
       const itemMap = dailyMap.get(dateStr)!;
 
       tx.items.forEach((item) => {
+        const qtyKirim = item.quantity;
+        const qtyTerima =
+          item.receivedQuantity !== undefined && item.receivedQuantity !== null
+            ? item.receivedQuantity
+            : item.quantity;
+        const susut = Math.max(0, qtyKirim - qtyTerima);
+
         if (!itemMap.has(item.name)) {
           itemMap.set(item.name, {
-            quantity: 0,
+            qtyKirim: 0,
+            qtyTerima: 0,
+            susut: 0,
             unit: item.unit,
             totalAmount: 0,
           });
         }
         const current = itemMap.get(item.name)!;
-        current.quantity += item.quantity;
+        current.qtyKirim += qtyKirim;
+        current.qtyTerima += qtyTerima;
+        current.susut += susut;
         current.totalAmount += item.subtotal;
       });
     });
@@ -169,7 +261,9 @@ export default function Reports() {
       date: string;
       items: {
         name: string;
-        quantity: number;
+        qtyKirim: number;
+        qtyTerima: number;
+        susut: number;
         unit: string;
         totalAmount: number;
       }[];
@@ -179,7 +273,9 @@ export default function Reports() {
       const items = Array.from(itemMap.entries())
         .map(([name, data]) => ({
           name,
-          quantity: data.quantity,
+          qtyKirim: data.qtyKirim,
+          qtyTerima: data.qtyTerima,
+          susut: data.susut,
           unit: data.unit,
           totalAmount: data.totalAmount,
         }))
@@ -235,6 +331,8 @@ export default function Reports() {
       "Total Terbayar (Rp)",
       "Sisa Utang (Rp)",
       "Jumlah Transaksi",
+      "Qty Kirim",
+      "Qty Terima",
       "Aktivitas Terakhir",
     ];
 
@@ -245,6 +343,8 @@ export default function Reports() {
       report.totalPaid.toString(),
       report.remainingDebt.toString(),
       report.totalTransactions.toString(),
+      report.qtyKirimStr,
+      report.qtyTerimaStr,
       formatDate(report.lastActive),
     ]);
 
@@ -260,7 +360,9 @@ export default function Reports() {
     const headers = [
       "Tanggal",
       "Nama Item",
-      "Jumlah Terjual",
+      "Qty Kirim",
+      "Qty Terima",
+      "Susut",
       "Satuan",
       "Total Nilai (Rp)",
     ];
@@ -272,7 +374,9 @@ export default function Reports() {
         rows.push([
           dateFormatted,
           item.name,
-          item.quantity.toString(),
+          item.qtyKirim.toString(),
+          item.qtyTerima.toString(),
+          item.susut.toString(),
           item.unit,
           item.totalAmount.toString(),
         ]);
@@ -308,8 +412,8 @@ export default function Reports() {
               setFilterQuery("");
             }}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "all"
-                ? "bg-red-600 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+              ? "bg-red-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
               }`}
           >
             <Layers className="w-3.5 h-3.5" /> Riwayat Transaksi All / Detail
@@ -321,8 +425,8 @@ export default function Reports() {
               setFilterQuery("");
             }}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "customer"
-                ? "bg-red-600 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+              ? "bg-red-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
               }`}
           >
             <Users className="w-3.5 h-3.5" /> Laporan per Pelanggan
@@ -334,8 +438,8 @@ export default function Reports() {
               setFilterQuery("");
             }}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "daily_items"
-                ? "bg-red-600 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+              ? "bg-red-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
               }`}
           >
             <BarChart3 className="w-3.5 h-3.5" /> Laporan Item Harian
@@ -356,7 +460,7 @@ export default function Reports() {
               </h3>
             </div>
           </div>
-          <div className="text-[10px] text-emerald-600 mt-2 flex items-center gap-1 font-bold">
+          <div className="text-[10px] text-emerald-600 mt-2 flex items-center justify-start gap-1 font-bold w-full">
             <TrendingUp className="w-3.5 h-3.5 shrink-0" /> Total nilai seluruh transaksi
           </div>
         </div>
@@ -370,9 +474,9 @@ export default function Reports() {
               {formatRupiah(totalPaidVal)}
             </h3>
           </div>
-          <p className="text-[10px] text-slate-500 font-semibold mt-2">
+          <div className="text-[10px] text-slate-500 font-semibold mt-2 text-left w-full justify-start">
             Dana masuk cash & transfer
-          </p>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
@@ -384,9 +488,9 @@ export default function Reports() {
               {formatRupiah(totalDebtVal)}
             </h3>
           </div>
-          <p className="text-[10px] text-red-500 mt-2 flex items-center gap-1 font-bold">
+          <div className="text-[10px] text-red-500 mt-2 flex items-center justify-start gap-1 font-bold w-full">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Sisa tagihan utang tempo
-          </p>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
@@ -398,9 +502,9 @@ export default function Reports() {
               {salesCount} Nota
             </h3>
           </div>
-          <p className="text-[10px] text-slate-500 font-semibold mt-2">
+          <div className="text-[10px] text-slate-500 font-semibold mt-2 text-left w-full justify-start">
             Penjualan berhasil tercatat
-          </p>
+          </div>
         </div>
       </div>
 
@@ -413,7 +517,7 @@ export default function Reports() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
           {/* Query search (invoice or customer) */}
           <div className="md:col-span-3 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
             <input
               id="report-search-input"
               type="text"
@@ -423,9 +527,59 @@ export default function Reports() {
                   : "Cari nama pelanggan..."
               }
               value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-4 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
+              onChange={(e) => {
+                setFilterQuery(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              onBlur={() => {
+                setTimeout(() => setIsSearchDropdownOpen(false), 150);
+              }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-8 text-xs font-bold text-slate-900 focus:border-red-500 focus:outline-none transition-all duration-200"
             />
+            <button
+              type="button"
+              onClick={() => setIsSearchDropdownOpen(!isSearchDropdownOpen)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+
+            {isSearchDropdownOpen && (
+              <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg z-50">
+                {filteredCustomersForSearch.length > 0 ? (
+                  filteredCustomersForSearch.map((cust) => (
+                    <button
+                      key={cust.id}
+                      type="button"
+                      onMouseDown={() => {
+                        setFilterQuery(cust.name);
+                        setIsSearchDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    >
+                      {cust.name} {cust.phone ? `(${cust.phone})` : ""}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-2 text-xs text-slate-400 font-bold">
+                    Tidak ada pelanggan cocok
+                  </div>
+                )}
+                {filterQuery && (
+                  <button
+                    type="button"
+                    onMouseDown={() => {
+                      setFilterQuery("");
+                      setIsSearchDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-black text-red-600 border-t border-slate-100 hover:bg-slate-50 transition-colors"
+                  >
+                    Reset Pencarian
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Payment Method Filter (only for 'all' tab) */}
@@ -554,23 +708,73 @@ export default function Reports() {
                       <td className="py-3.5 px-5 font-bold text-slate-800">
                         {tx.customerName}
                       </td>
-                      <td className="py-3.5 px-5 text-slate-600 font-semibold max-w-[200px] truncate">
-                        {tx.items
-                          .map(
-                            (item) =>
-                              `${item.name} (${item.quantity}${item.unit})`,
-                          )
-                          .join(", ")}
+                      <td className="py-3.5 px-5 text-slate-600 font-semibold max-w-[280px]">
+                        {tx.usePenerimaan ? (
+                          <div className="space-y-1">
+                            {tx.items.map((item) => {
+                              const qtyTerima =
+                                item.receivedQuantity !== undefined &&
+                                  item.receivedQuantity !== null
+                                  ? item.receivedQuantity
+                                  : item.quantity;
+                              const susut = Math.max(0, item.quantity - qtyTerima);
+                              return (
+                                <div
+                                  key={item.itemId}
+                                  className="text-[10px] leading-tight border-b border-slate-100/50 pb-0.5 last:border-0"
+                                >
+                                  <div className="font-bold text-slate-800">
+                                    {item.name}
+                                  </div>
+                                  <div className="text-[9px] text-slate-500 flex flex-wrap gap-x-1 font-mono">
+                                    <span>
+                                      Kirim: {item.quantity} {item.unit}
+                                    </span>
+                                    <span>|</span>
+                                    <span className="text-emerald-700 font-bold">
+                                      Terima: {qtyTerima} {item.unit}
+                                    </span>
+                                    {susut > 0 && (
+                                      <>
+                                        <span>|</span>
+                                        <span className="text-red-600 font-bold">
+                                          Susut: {susut.toFixed(2)} {item.unit}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div
+                            className="truncate max-w-[200px]"
+                            title={tx.items
+                              .map(
+                                (item) =>
+                                  `${item.name} (${item.quantity}${item.unit})`,
+                              )
+                              .join(", ")}
+                          >
+                            {tx.items
+                              .map(
+                                (item) =>
+                                  `${item.name} (${item.quantity}${item.unit})`,
+                              )
+                              .join(", ")}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 px-5 text-center">
                         <span
                           className={`inline-flex rounded-lg px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide border ${tx.paymentMethod === "cash"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : tx.paymentMethod === "transfer"
-                                ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : tx.paymentMethod === "mix"
-                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : tx.paymentMethod === "transfer"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : tx.paymentMethod === "mix"
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
                             }`}
                         >
                           {tx.paymentMethod === "debt"
@@ -591,8 +795,8 @@ export default function Reports() {
                       <td className="py-3.5 px-5 text-center">
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${tx.printCount >= 1
-                              ? "bg-red-50 text-red-700 font-black"
-                              : "bg-slate-100 text-slate-500"
+                            ? "bg-red-50 text-red-700 font-black"
+                            : "bg-slate-100 text-slate-500"
                             }`}
                           title={
                             tx.printCount >= 1
@@ -604,7 +808,18 @@ export default function Reports() {
                         </span>
                       </td>
                       <td className="py-3.5 px-5 text-right whitespace-nowrap">
-                        <div className="flex justify-end gap-1.5">
+                        <div className="flex justify-end gap-1.5 font-sans">
+                          <button
+                            id={`penerimaan-tx-btn-${tx.id}`}
+                            onClick={() => setPenerimaanTx(tx)}
+                            className={`inline-flex items-center gap-1 rounded-lg border font-bold text-[10px] py-1 px-2 shadow-sm transition cursor-pointer ${tx.usePenerimaan
+                              ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-black"
+                              : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                              }`}
+                            title="Atur Penerimaan & Hitung Susut"
+                          >
+                            ⚖️ {tx.usePenerimaan ? "Terima: Ya" : "Terima"}
+                          </button>
                           <button
                             id={`reprint-receipt-btn-${tx.id}`}
                             onClick={() => setReprintTx(tx)}
@@ -656,6 +871,12 @@ export default function Reports() {
                       Jumlah Transaksi
                     </th>
                     <th className="py-4 px-6 font-bold uppercase tracking-wider text-[10px] text-right">
+                      Qty Kirim
+                    </th>
+                    <th className="py-4 px-6 font-bold uppercase tracking-wider text-[10px] text-right">
+                      Qty Terima
+                    </th>
+                    <th className="py-4 px-6 font-bold uppercase tracking-wider text-[10px] text-right">
                       Total Akumulasi Pembelian
                     </th>
                     <th className="py-4 px-6 font-bold uppercase tracking-wider text-[10px] text-right">
@@ -680,6 +901,12 @@ export default function Reports() {
                       </td>
                       <td className="py-3.5 px-6 text-center font-bold text-slate-500">
                         {report.totalTransactions} Transaksi
+                      </td>
+                      <td className="py-3.5 px-6 text-right font-bold text-slate-700 font-mono whitespace-nowrap">
+                        {report.qtyKirimStr}
+                      </td>
+                      <td className="py-3.5 px-6 text-right font-bold text-emerald-700 font-mono whitespace-nowrap">
+                        {report.qtyTerimaStr}
                       </td>
                       <td className="py-3.5 px-6 text-right font-bold text-slate-900 font-mono">
                         {formatRupiah(report.totalSpent)}
@@ -726,7 +953,13 @@ export default function Reports() {
                           Nama Item
                         </th>
                         <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
-                          Jumlah Terjual
+                          Qty Kirim
+                        </th>
+                        <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
+                          Qty Terima
+                        </th>
+                        <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px] text-right text-red-500">
+                          Susut
                         </th>
                         <th className="py-3 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
                           Total Nilai
@@ -742,11 +975,29 @@ export default function Reports() {
                           <td className="py-2.5 px-5 font-semibold text-slate-800">
                             {item.name}
                           </td>
-                          <td className="py-2.5 px-5 text-right font-bold text-slate-900 font-mono">
-                            {item.quantity}{" "}
-                            <span className="text-slate-500 font-medium text-[10px]">
+                          <td className="py-2.5 px-5 text-right font-bold text-slate-700 font-mono">
+                            {item.qtyKirim.toFixed(2)}{" "}
+                            <span className="text-slate-400 font-medium text-[9px]">
                               {item.unit}
                             </span>
+                          </td>
+                          <td className="py-2.5 px-5 text-right font-bold text-emerald-700 font-mono">
+                            {item.qtyTerima.toFixed(2)}{" "}
+                            <span className="text-emerald-400 font-medium text-[9px]">
+                              {item.unit}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-5 text-right font-bold text-red-600 font-mono">
+                            {item.susut > 0 ? (
+                              <>
+                                {item.susut.toFixed(2)}{" "}
+                                <span className="text-red-400 font-medium text-[9px]">
+                                  {item.unit}
+                                </span>
+                              </>
+                            ) : (
+                              "-"
+                            )}
                           </td>
                           <td className="py-2.5 px-5 text-right font-bold text-emerald-600 font-mono">
                             {formatRupiah(item.totalAmount)}
@@ -808,6 +1059,173 @@ export default function Reports() {
                   className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition cursor-pointer"
                 >
                   Hapus
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PENERIMAAN / SUSUT MODAL */}
+      {penerimaanTx && editingPenerimaan && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border-t-4 border-emerald-500 animate-in zoom-in-95 duration-150 my-8">
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="font-black text-slate-900 text-sm tracking-tight uppercase flex items-center gap-2">
+                  ⚖️ Atur Penerimaan & Hitung Susut
+                </h4>
+                <span className="font-mono text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">
+                  {penerimaanTx.invoiceNumber}
+                </span>
+              </div>
+
+              <div className="mb-4 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs text-slate-600 space-y-1">
+                <div className="flex justify-between">
+                  <span>Pelanggan:</span>
+                  <span className="font-bold text-slate-800">{penerimaanTx.customerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tanggal Nota:</span>
+                  <span>{formatDate(penerimaanTx.date, true)}</span>
+                </div>
+              </div>
+
+              {/* LIST OF ITEMS TO ADJUST */}
+              <div className="space-y-3 mb-4 max-h-[250px] overflow-y-auto pr-1">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                  Detail Item Timbangan Terima
+                </div>
+                {editingPenerimaan.items.map((item, index) => {
+                  const qtyKirim = item.quantity;
+                  const qtyTerima = item.receivedQuantity !== undefined ? item.receivedQuantity : qtyKirim;
+                  const susut = Math.max(0, qtyKirim - qtyTerima);
+                  return (
+                    <div
+                      key={item.itemId}
+                      className="p-3 bg-white border border-slate-100 rounded-xl flex items-center justify-between gap-4 shadow-sm"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold text-slate-800 truncate">
+                          {item.name}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 font-semibold">
+                          Harga Satuan: {formatRupiah(item.price)}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block font-semibold">
+                            Qty Kirim
+                          </span>
+                          <span className="text-xs font-bold text-slate-600 font-mono">
+                            {qtyKirim} {item.unit}
+                          </span>
+                        </div>
+
+                        <div className="text-right">
+                          <label className="text-[10px] text-slate-500 block font-bold">
+                            Qty Terima
+                          </label>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <input
+                              type="number"
+                              step="any"
+                              id={`penerimaan-qty-input-${index}`}
+                              value={qtyTerima === 0 ? "" : qtyTerima}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                const updatedItems = editingPenerimaan.items.map((it) => {
+                                  if (it.itemId === item.itemId) {
+                                    return {
+                                      ...it,
+                                      receivedQuantity: val,
+                                      subtotal: val * it.price,
+                                    };
+                                  }
+                                  return it;
+                                });
+                                const newTotal = updatedItems.reduce((sum, it) => sum + it.subtotal, 0);
+                                const updated = {
+                                  ...editingPenerimaan,
+                                  items: updatedItems,
+                                  totalAmount: newTotal,
+                                };
+                                if (updated.remainingDebt > 0 || updated.paymentMethod === "debt") {
+                                  updated.remainingDebt = Math.max(0, newTotal - updated.amountPaid);
+                                }
+                                setEditingPenerimaan(updated);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowDown" || e.key === "Enter") {
+                                  e.preventDefault();
+                                  const nextInput = document.getElementById(`penerimaan-qty-input-${index + 1}`);
+                                  if (nextInput) {
+                                    (nextInput as HTMLInputElement).focus();
+                                    (nextInput as HTMLInputElement).select();
+                                  }
+                                } else if (e.key === "ArrowUp") {
+                                  e.preventDefault();
+                                  const prevInput = document.getElementById(`penerimaan-qty-input-${index - 1}`);
+                                  if (prevInput) {
+                                    (prevInput as HTMLInputElement).focus();
+                                    (prevInput as HTMLInputElement).select();
+                                  }
+                                }
+                              }}
+                              className="w-20 text-right rounded-lg border border-slate-200 py-1 px-2 font-mono font-bold text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <span className="text-[10px] text-slate-500 font-semibold">{item.unit}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right w-16">
+                          <span className="text-[10px] text-red-400 block font-semibold">
+                            Susut
+                          </span>
+                          <span className="text-xs font-bold text-red-600 font-mono">
+                            {susut.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* PRICING REVIEW SUMMARY */}
+              <div className="mt-4 p-4 bg-slate-50 rounded-xl space-y-2 border border-slate-100 text-xs">
+                <div className="flex justify-between text-slate-500 font-medium">
+                  <span>Total Belanja Semula:</span>
+                  <span className="font-mono">{formatRupiah(penerimaanTx.totalAmount)}</span>
+                </div>
+                <div className="flex justify-between font-black text-slate-800 text-sm">
+                  <span>Total Setelah Penerimaan:</span>
+                  <span className="font-mono text-emerald-600">{formatRupiah(editingPenerimaan.totalAmount)}</span>
+                </div>
+                {editingPenerimaan.paymentMethod === "debt" && (
+                  <div className="flex justify-between text-red-600 font-bold border-t border-slate-200/65 pt-1.5">
+                    <span>Piutang / Sisa Utang Baru:</span>
+                    <span className="font-mono">{formatRupiah(editingPenerimaan.remainingDebt)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <button
+                  onClick={() => setPenerimaanTx(null)}
+                  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  id="save-penerimaan-tx-btn"
+                  onClick={handleSavePenerimaan}
+                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-emerald-600/10 transition cursor-pointer"
+                >
+                  Simpan Penerimaan
                 </button>
               </div>
             </div>

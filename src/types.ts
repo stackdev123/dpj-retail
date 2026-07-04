@@ -22,6 +22,7 @@ export interface TransactionItem {
   quantity: number;
   subtotal: number;
   unit: string;
+  receivedQuantity?: number;
 }
 
 export interface Transaction {
@@ -37,9 +38,9 @@ export interface Transaction {
   date: string; // ISO String
   printCount: number; // 0 = not printed yet, 1 = first print, >=2 = reprinted
   notes?: string;
-  // For mixed (cash + transfer) payments only
   cashAmount?: number;
   transferAmount?: number;
+  usePenerimaan?: boolean;
 }
 
 export interface DebtPayment {

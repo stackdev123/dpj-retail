@@ -508,7 +508,16 @@ export function compileEscPosReceipt(
         pushText(`${itemName}\n`);
 
         // Row 2: Qty x Price and Subtotal
-        const qtyPriceStr = `   ${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`;
+        let qtyPriceStr = "";
+        if (transaction.usePenerimaan) {
+            const qtyTerima =
+                item.receivedQuantity !== undefined && item.receivedQuantity !== null
+                    ? item.receivedQuantity
+                    : item.quantity;
+            qtyPriceStr = `   Trm: ${qtyTerima} ${item.unit} x ${formatRupiah(item.price)} (Krm: ${item.quantity})`;
+        } else {
+            qtyPriceStr = `   ${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`;
+        }
         const subtotalStr = formatRupiah(item.subtotal);
 
         // Pad spaces between Qty string and Subtotal to fill up 48 chars
