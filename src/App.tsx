@@ -7,12 +7,13 @@ import DatabaseManager from './components/DatabaseManager';
 import ActivityLogs from './components/ActivityLogs';
 import UserManager from './components/UserManager';
 import Login from './components/Login';
+import PrinterSettings from './components/PrinterSettings';
 import { AppUser } from './types';
 import { db } from './utils/db';
 import { autoConnectPrinter } from './utils/printer';
-import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw, Crown, ChevronDown } from 'lucide-react';
+import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw, Crown, ChevronDown, Settings } from 'lucide-react';
 
-type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'database' | 'activity_logs' | 'users_management';
+type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'database' | 'activity_logs' | 'users_management' | 'settings';
 
 function OnlineUsersDropdown({ onlineUsers }: { onlineUsers: any[] }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -236,6 +237,7 @@ export default function App() {
     { id: 'database', label: 'Database Master', icon: Database },
     { id: 'activity_logs', label: 'Log Aktivitas', icon: History },
     { id: 'users_management', label: 'Kelola Pengguna', icon: Users },
+    { id: 'settings', label: 'Pengaturan Printer', icon: Settings },
   ] as const;
 
   const visibleNavItems = navItems.filter(item => {
@@ -265,6 +267,8 @@ export default function App() {
         ) : (
           <Dashboard />
         );
+      case 'settings':
+        return <PrinterSettings />;
       default:
         return <Dashboard />;
     }
@@ -478,7 +482,8 @@ export default function App() {
                     : activeMenu === 'reports' ? 'Laporan Penjualan'
                       : activeMenu === 'database' ? 'Database Master'
                         : activeMenu === 'activity_logs' ? 'Log Aktivitas Sistem'
-                          : 'Kelola Pengguna Sistem'}
+                          : activeMenu === 'settings' ? 'Pengaturan Printer Thermal'
+                            : 'Kelola Pengguna Sistem'}
             </h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1.5">
               Sistem Informasi Retail CV DPJ Berkah
@@ -497,24 +502,26 @@ export default function App() {
 
       {/* 4. MOBILE BOTTOM ACTION BAR FOR COMFORT */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-[#0b0f19]/95 backdrop-blur-md border-t border-slate-800/80 text-white py-2 px-4 flex justify-around shadow-2xl">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeMenu === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActiveMenu(item.id);
-                setMobileMenuOpen(false);
-              }}
-              className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-all duration-200 ${isActive ? 'text-red-500 font-bold scale-105 bg-red-500/10' : 'text-slate-400 hover:text-slate-200'
-                }`}
-            >
-              <Icon className="w-4.5 h-4.5" />
-              <span className="text-[8px] mt-1 font-bold uppercase tracking-wider">{item.label.split(' ')[0]}</span>
-            </button>
-          );
-        })}
+        {navItems
+          .filter(item => ['dashboard', 'cashier', 'ledger', 'settings'].includes(item.id))
+          .map((item) => {
+            const Icon = item.icon;
+            const isActive = activeMenu === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveMenu(item.id);
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-all duration-200 flex-1 ${isActive ? 'text-red-500 font-bold scale-105 bg-red-500/10' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+              >
+                <Icon className="w-4.5 h-4.5" />
+                <span className="text-[8px] mt-1 font-bold uppercase tracking-wider">{item.label.split(' ')[0]}</span>
+              </button>
+            );
+          })}
       </div>
 
     </div>

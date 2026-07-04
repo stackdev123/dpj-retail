@@ -1,5 +1,6 @@
+import React, { useState, useEffect } from "react";
 import { Transaction } from "../types";
-import { formatRupiah, formatDate } from "./format";
+import { formatRupiah, formatDate } from "../utils/format";
 
 // ESC/POS Commands Constants
 const ESC = 0x1b;
@@ -805,4 +806,172 @@ export async function printTestPage(): Promise<void> {
 
     // Send raw data
     await printRawData(rawData);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// React Component — Default Export
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function PrinterSettings() {
+    const [printer, setPrinter] = useState<PrinterDevice | null>(null);
+    const [loading, setLoading] = useState<"usb" | "bluetooth" | "disconnect" | "test" | null>(null);
+    const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+
+    useEffect(() => {
+        const current = getConnectedPrinter();
+        if (current) setPrinter(current);
+    }, []);
+
+    const showMsg = (type: "success" | "error" | "info", text: string) => {
+        setMessage({ type, text });
+        setTimeout(() => setMessage(null), 5000);
+    };
+
+    const handleConnectUSB = async () => {
+        setLoading("usb");
+        try {
+            const device = await connectPrinter();
+            setPrinter(device);
+            showMsg("success", `Printer USB "${device.name}" berhasil terhubung!`);
+        } catch (err: any) {
+            showMsg("error", err.message || "Gagal menghubungkan printer USB.");
+        } finally {
+            setLoading(null);
+        }
+    };
+
+    const handleConnectBluetooth = async () => {
+        setLoading("bluetooth");
+        try {
+            const device = await connectBluetoothPrinter();
+            setPrinter(device);
+            showMsg("success", `Printer Bluetooth "${device.name}" berhasil terhubung!`);
+        } catch (err: any) {
+            showMsg("error", err.message || "Gagal menghubungkan printer Bluetooth.");
+        } finally {
+            setLoading(null);
+        }
+    };
+
+    const handleDisconnect = async () => {
+        setLoading("disconnect");
+        try {
+            await disconnectPrinter();
+            setPrinter(null);
+            showMsg("info", "Printer berhasil diputus koneksinya.");
+        } catch (err: any) {
+            showMsg("error", err.message || "Gagal memutus koneksi printer.");
+        } finally {
+            setLoading(null);
+        }
+    };
+
+    const handleTestPrint = async () => {
+        setLoading("test");
+        try {
+            await printTestPage();
+            showMsg("success", "Halaman uji coba berhasil dicetak!");
+        } catch (err: any) {
+            showMsg("error", err.message || "Gagal mencetak halaman uji coba.");
+        } finally {
+            setLoading(null);
+        }
+    };
+
+    const usbSupported = isWebUSBSupported();
+    const btSupported = isBluetoothSupported();
+
+    return (
+        <div className="max-w-xl mx-auto space-y-6">
+            <div>
+                <h3 className="text-base font-extrabold text-slate-800 tracking-tight">Pengaturan Printer Thermal</h3>
+                <p className="text-xs text-slate-400 mt-1">Hubungkan printer ESC/POS via USB atau Bluetooth untuk mencetak struk secara langsung.</p>
+            </div>
+
+            {/* Status Card */}
+            <div className={`rounded-2xl border p-5 flex items-center gap-4 ${printer ? "bg-green-50 border-green-200" : "bg-slate-50 border-slate-200"}`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${printer ? "bg-green-100" : "bg-slate-100"}`}>
+                    {printer ? "🖨️" : "🔌"}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-extrabold uppercase tracking-wider ${printer ? "text-green-700" : "text-slate-500"}`}>
+                        {printer ? "Printer Terhubung" : "Tidak Ada Printer"}
+                    </p>
+                    {printer ? (
+                        <>
+                            <p className="text-sm font-bold text-slate-800 truncate mt-0.5">{printer.name}</p>
+                            <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">
+                                {printer.type === "bluetooth" ? "Bluetooth (BLE)" : "USB"}
+                            </p>
+                        </>
+                    ) : (
+                        <p className="text-xs text-slate-400 mt-0.5">Hubungkan printer untuk mulai mencetak struk.</p>
+                    )}
+                </div>
+                {printer && (
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+                )}
+            </div>
+
+            {/* Message */}
+            {message && (
+                <div className={`rounded-xl px-4 py-3 text-xs font-semibold ${
+                    message.type === "success" ? "bg-green-100 text-green-700 border border-green-200"
+                    : message.type === "error" ? "bg-red-100 text-red-700 border border-red-200"
+                    : "bg-blue-100 text-blue-700 border border-blue-200"
+                }`}>
+                    {message.text}
+                </div>
+            )}
+
+            {/* Actions */}
+            <div className="space-y-3">
+                {!printer ? (
+                    <>
+                        <button
+                            onClick={handleConnectUSB}
+                            disabled={!usbSupported || loading !== null}
+                            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 text-white text-xs font-bold hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                            {loading === "usb" ? "⏳ Menghubungkan..." : "🔌 Hubungkan via USB"}
+                            {!usbSupported && <span className="ml-1 text-slate-400">(Tidak Didukung)</span>}
+                        </button>
+                        <button
+                            onClick={handleConnectBluetooth}
+                            disabled={!btSupported || loading !== null}
+                            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                            {loading === "bluetooth" ? "⏳ Menghubungkan..." : "📶 Hubungkan via Bluetooth"}
+                            {!btSupported && <span className="ml-1 text-blue-200">(Tidak Didukung)</span>}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            onClick={handleTestPrint}
+                            disabled={loading !== null}
+                            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                            {loading === "test" ? "⏳ Mencetak..." : "🖨️ Cetak Halaman Uji Coba"}
+                        </button>
+                        <button
+                            onClick={handleDisconnect}
+                            disabled={loading !== null}
+                            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-50 text-red-600 border border-red-200 text-xs font-bold hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                            {loading === "disconnect" ? "⏳ Memutus..." : "⛔ Putus Koneksi Printer"}
+                        </button>
+                    </>
+                )}
+            </div>
+
+            {/* Info */}
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-xs text-amber-700 space-y-1">
+                <p className="font-bold">ℹ️ Catatan Penting</p>
+                <p>• Gunakan <strong>Google Chrome</strong> atau <strong>Microsoft Edge</strong> untuk dukungan WebUSB & Web Bluetooth.</p>
+                <p>• Pastikan tidak ada tab atau aplikasi lain yang menggunakan printer bersamaan.</p>
+                <p>• Printer didukung: ESC/POS Thermal 80mm (Epson, Generic, dll).</p>
+            </div>
+        </div>
+    );
 }
