@@ -743,11 +743,7 @@ export default function ReceiptModal({
                   Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan
                   <br /> Kec. Bojong Kab. Purwakarta
                   <br />
-<<<<<<< HEAD
                   Telp/Hp. +62 818-0734-9347
-=======
-                  Telp/Hp. +62 877-6908-0999
->>>>>>> a1dab1180b8976e20065e28a46e154f8ef3b4569
                 </p>
                 <div className="border-t border-dashed border-slate-300 my-3"></div>
               </div>
@@ -772,7 +768,6 @@ export default function ReceiptModal({
                     {transaction.customerName}
                   </span>
                 </div>
-<<<<<<< HEAD
                 {transaction.notes && transaction.notes.trim() && (
                   <div className="flex justify-between">
                     <span className="text-slate-400">Catatan:</span>
@@ -781,8 +776,6 @@ export default function ReceiptModal({
                     </span>
                   </div>
                 )}
-=======
->>>>>>> a1dab1180b8976e20065e28a46e154f8ef3b4569
               </div>
 
               <div className="border-t border-dashed border-slate-300 my-3"></div>
