@@ -350,7 +350,7 @@ export default function DebtLedger() {
     doc.setFontSize(8.5);
     doc.setTextColor(71, 85, 105); // slate-600
     doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan, Kec. Bojong, Kab. Purwakarta", textX, 19);
-    doc.text("Telp/Hp. +62 877-6908-0999 | Email: cvdpjberkahunggas@gmail.com", textX, 23);
+    doc.text("Telp/Hp. +62 828-0734-9347 | Email: cvdpjberkahunggas@gmail.com", textX, 23);
 
     // Double-line Kop Surat border (traditional Indonesian style)
     doc.setDrawColor(15, 23, 42);
@@ -518,13 +518,10 @@ export default function DebtLedger() {
     doc.text(totalKreditTrf > 0 ? formatRupiah(totalKreditTrf) : "-", 95, y);
     doc.text(totalKreditCash > 0 ? formatRupiah(totalKreditCash) : "-", 135, y);
 
-    // SOLID BLACK CELL CORNER AS IN THE DISPLAY
-    doc.setFillColor(11, 15, 25); // #0b0f19
-    doc.rect(170, y - 4, 26, 6, "F");
+    const finalBal = openingBalance + totalDebitBeli - totalKreditTrf - totalKreditCash;
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(255, 255, 255);
-    doc.text("CLOSED", 183, y, { align: "center" });
+    doc.setTextColor(15, 23, 42);
+    doc.text(finalBal === 0 ? "-" : formatRupiah(finalBal), 175, y);
 
     y += 6;
     // Bottom border line for summary
@@ -629,7 +626,7 @@ export default function DebtLedger() {
     doc.setFontSize(8.5);
     doc.setTextColor(71, 85, 105); // slate-600
     doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan, Kec. Bojong, Kab. Purwakarta", textX, 19);
-    doc.text("Telp/Hp. +62 877-6908-0999 | Email: cvdpjberkahunggas@gmail.com", textX, 23);
+    doc.text("Telp/Hp. +62 828-0734-9347 | Email: cvdpjberkahunggas@gmail.com", textX, 23);
 
     // Double-line Kop Surat border
     doc.setDrawColor(15, 23, 42);
@@ -1277,11 +1274,10 @@ export default function DebtLedger() {
                         {totalKreditCash > 0 ? formatRupiah(totalKreditCash) : "-"}
                       </td>
 
-                      {/* SOLID BLACK CELL CORNER AS IN THE USER'S SCREENSHOT */}
-                      <td className="bg-[#0b0f19] py-4 px-3 text-center">
-                        <span className="text-white/20 text-[9px] font-black tracking-widest uppercase">
-                          CLOSED
-                        </span>
+                      <td className="py-4 px-3 text-center text-xs sm:text-sm text-slate-900 font-mono">
+                        {openingBalance + totalDebitBeli - totalKreditTrf - totalKreditCash === 0
+                          ? "-"
+                          : formatRupiah(openingBalance + totalDebitBeli - totalKreditTrf - totalKreditCash)}
                       </td>
                     </tr>
                   </tbody>
@@ -1365,19 +1361,19 @@ export default function DebtLedger() {
                     {filteredSummaries.map((summary) => (
                       <tr key={summary.customerId} className="hover:bg-slate-50/50 transition border-b border-slate-150">
                         <td className="py-4 px-4 border-r border-slate-200">
-                          <div className="font-black text-slate-900 tracking-wide text-[13px]">{summary.customerName.toUpperCase()}</div>
-                          <div className="text-[9px] text-slate-400 font-bold">ID: {summary.customerId}</div>
+                          <div className="font-black text-slate-900 tracking-wide text-[11px]">{summary.customerName.toUpperCase()}</div>
+                          <div className="text-[8px] text-slate-400 font-bold">ID: {summary.customerId}</div>
                         </td>
-                        <td className="py-4 px-4 text-center font-mono font-extrabold text-slate-900 text-[13px] border-r border-slate-200">
+                        <td className="py-4 px-4 text-center font-mono font-extrabold text-slate-900 text-[11px] border-r border-slate-200">
                           {summary.totalPembelian > 0 ? formatRupiah(summary.totalPembelian) : "-"}
                         </td>
-                        <td className="py-4 px-4 text-center font-mono font-bold text-blue-600 text-[13px] border-r border-slate-200">
+                        <td className="py-4 px-4 text-center font-mono font-bold text-blue-600 text-[11px] border-r border-slate-200">
                           {summary.totalTransfer > 0 ? formatRupiah(summary.totalTransfer) : "-"}
                         </td>
-                        <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600 text-[13px] border-r border-slate-200">
+                        <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600 text-[11px] border-r border-slate-200">
                           {summary.totalCash > 0 ? formatRupiah(summary.totalCash) : "-"}
                         </td>
-                        <td className="py-4 px-4 text-center font-mono font-black text-indigo-600 bg-indigo-50/10 text-[13px] border-r border-slate-200">
+                        <td className="py-4 px-4 text-center font-mono font-black text-indigo-600 bg-indigo-50/10 text-[11px] border-r border-slate-200">
                           {summary.remainingDebt > 0 ? formatRupiah(summary.remainingDebt) : "-"}
                         </td>
                         <td className="py-4 px-4 text-center">
@@ -1397,19 +1393,19 @@ export default function DebtLedger() {
 
                     {/* GRAND TOTAL ROW EXACTLY MATCHING FOOTER STYLE */}
                     <tr className="bg-slate-50 border-t-2 border-slate-950 font-black">
-                      <td className="py-4 px-4 text-xs font-black uppercase tracking-wider border-r border-slate-200">
+                      <td className="py-4 px-4 text-[10px] font-black uppercase tracking-wider border-r border-slate-200">
                         TOTAL KESELURUHAN
                       </td>
-                      <td className="py-4 px-4 text-center font-mono font-extrabold text-slate-900 text-[13px] border-r border-slate-200">
+                      <td className="py-4 px-4 text-center font-mono font-extrabold text-slate-900 text-[11px] border-r border-slate-200">
                         {formatRupiah(totalRekapPembelian)}
                       </td>
-                      <td className="py-4 px-4 text-center font-mono font-bold text-blue-600 text-[13px] border-r border-slate-200">
+                      <td className="py-4 px-4 text-center font-mono font-bold text-blue-600 text-[11px] border-r border-slate-200">
                         {formatRupiah(totalRekapTransfer)}
                       </td>
-                      <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600 text-[13px] border-r border-slate-200">
+                      <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600 text-[11px] border-r border-slate-200">
                         {formatRupiah(totalRekapCash)}
                       </td>
-                      <td className="py-4 px-4 text-center font-mono font-black text-indigo-600 bg-indigo-50/30 text-[13px] border-r border-slate-200">
+                      <td className="py-4 px-4 text-center font-mono font-black text-indigo-600 bg-indigo-50/30 text-[11px] border-r border-slate-200">
                         {formatRupiah(totalRekapRemaining)}
                       </td>
                       <td className="bg-[#0b0f19] py-4 px-4 text-center">
@@ -1428,208 +1424,69 @@ export default function DebtLedger() {
 
       {/* 1. PAY MODAL (BAYAR) */}
       {isPayModalOpen && selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl relative overflow-hidden space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="absolute top-0 left-0 right-0 h-[4px] bg-emerald-600"></div>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl relative overflow-hidden space-y-4 animate-in zoom-in-95 duration-150 my-8">
+              <div className="absolute top-0 left-0 right-0 h-[4px] bg-emerald-600"></div>
 
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
-                <DollarSign className="w-4 h-4 text-emerald-600" /> Catat Pembayaran / Setoran
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsPayModalOpen(false)}
-                className="text-slate-400 hover:text-slate-900 transition p-1 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 text-xs font-semibold text-slate-600 space-y-1">
-              <div>
-                Pelanggan: <span className="font-black text-slate-900">{selectedCustomer.name.toUpperCase()}</span>
-              </div>
-              <div>
-                Total Sisa Piutang: <span className="font-black text-red-600 font-mono">{formatRupiah(selectedSummary?.remainingDebt || 0)}</span>
-              </div>
-            </div>
-
-            <form onSubmit={handlePaySubmit} className="space-y-4">
-              {/* Repay Amount */}
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                  Jumlah Setor (Rp) <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                    Rp
-                  </span>
-                  <input
-                    type="number"
-                    required
-                    value={repayAmount}
-                    onChange={(e) =>
-                      setRepayAmount(e.target.value === "" ? "" : Number(e.target.value))
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-8 pr-3 text-xs font-black text-slate-900 focus:border-indigo-500 focus:outline-none"
-                    placeholder="Masukkan jumlah pembayaran"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 font-semibold mt-1.5">
-                  Setoran akan memotong nota piutang terutang terlama terlebih dahulu (FIFO).
-                </p>
-              </div>
-
-              {/* Repay Method */}
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
-                  Metode Setoran
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRepayMethod("cash")}
-                    className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "cash"
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
-                      }`}
-                  >
-                    Cash (Tunai)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRepayMethod("transfer")}
-                    className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "transfer"
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
-                      }`}
-                  >
-                    Transfer Bank
-                  </button>
-                </div>
-              </div>
-
-              {/* Repay Notes */}
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                  Catatan Setoran
-                </label>
-                <textarea
-                  placeholder="Contoh: Cicilan nota ke-3, bayar lunas, dll."
-                  value={repayNotes}
-                  onChange={(e) => setRepayNotes(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none resize-none"
-                />
-              </div>
-
-              {/* Form buttons */}
-              <div className="flex gap-2.5 justify-end pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-emerald-600" /> Catat Pembayaran / Setoran
+                </h3>
                 <button
                   type="button"
                   onClick={() => setIsPayModalOpen(false)}
-                  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                  className="text-slate-400 hover:text-slate-900 transition p-1 cursor-pointer"
                 >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-sm transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" /> Simpan
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* 2. MANUAL ADJUSTMENT MODAL (MANUAL) */}
-      {isManualModalOpen && selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl relative overflow-hidden space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="absolute top-0 left-0 right-0 h-[4px] bg-slate-900"></div>
-
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600" /> Transaksi Penyesuaian Manual
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsManualModalOpen(false)}
-                className="text-slate-400 hover:text-slate-900 transition p-1 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 text-xs font-semibold text-slate-600">
-              Pelanggan: <span className="font-black text-slate-900">{selectedCustomer.name.toUpperCase()}</span>
-            </div>
-
-            <form onSubmit={handleManualSubmit} className="space-y-4">
-              {/* Type toggle: Debit (Beli / Utang) vs Kredit (Setor / Potong) */}
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
-                  Tipe Penyesuaian
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setManualType("debit")}
-                    className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualType === "debit"
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
-                      }`}
-                  >
-                    Debit (Beli / Utang)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setManualType("kredit")}
-                    className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualType === "kredit"
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
-                      }`}
-                  >
-                    Kredit (Setor / Potong)
-                  </button>
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 text-xs font-semibold text-slate-600 space-y-1">
+                <div>
+                  Pelanggan: <span className="font-black text-slate-900">{selectedCustomer.name.toUpperCase()}</span>
+                </div>
+                <div>
+                  Total Sisa Piutang: <span className="font-black text-red-600 font-mono">{formatRupiah(selectedSummary?.remainingDebt || 0)}</span>
                 </div>
               </div>
 
-              {/* Amount */}
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                  Nominal Penyesuaian (Rp) <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                    Rp
-                  </span>
-                  <input
-                    type="number"
-                    required
-                    value={manualAmount}
-                    onChange={(e) =>
-                      setManualAmount(e.target.value === "" ? "" : Number(e.target.value))
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-8 pr-3 text-xs font-black text-slate-900 focus:border-indigo-500 focus:outline-none"
-                    placeholder="Masukkan jumlah nominal"
-                  />
+              <form onSubmit={handlePaySubmit} className="space-y-4">
+                {/* Repay Amount */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Jumlah Setor (Rp) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      required
+                      value={repayAmount}
+                      onChange={(e) =>
+                        setRepayAmount(e.target.value === "" ? "" : Number(e.target.value))
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-8 pr-3 text-xs font-black text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      placeholder="Masukkan jumlah pembayaran"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-1.5">
+                    Setoran akan memotong nota piutang terutang terlama terlebih dahulu (FIFO).
+                  </p>
                 </div>
-              </div>
 
-              {/* If Kredit, choose payment method */}
-              {manualType === "kredit" && (
+                {/* Repay Method */}
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
-                    Metode Pembayaran
+                    Metode Setoran
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setManualPayMethod("cash")}
-                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualPayMethod === "cash"
+                      onClick={() => setRepayMethod("cash")}
+                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "cash"
                           ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
                           : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
@@ -1638,8 +1495,8 @@ export default function DebtLedger() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setManualPayMethod("transfer")}
-                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualPayMethod === "transfer"
+                      onClick={() => setRepayMethod("transfer")}
+                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "transfer"
                           ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
                           : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
@@ -1648,39 +1505,182 @@ export default function DebtLedger() {
                     </button>
                   </div>
                 </div>
-              )}
 
-              {/* Notes */}
-              <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                  Keterangan / Catatan
-                </label>
-                <textarea
-                  placeholder="Contoh: Saldo awal buku besar, koreksi selisih kas, dll."
-                  value={manualNotes}
-                  onChange={(e) => setManualNotes(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none resize-none"
-                />
-              </div>
+                {/* Repay Notes */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Catatan Setoran
+                  </label>
+                  <textarea
+                    placeholder="Contoh: Cicilan nota ke-3, bayar lunas, dll."
+                    value={repayNotes}
+                    onChange={(e) => setRepayNotes(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none resize-none"
+                  />
+                </div>
 
-              {/* Form buttons */}
-              <div className="flex gap-2.5 justify-end pt-2 border-t border-slate-100">
+                {/* Form buttons */}
+                <div className="flex gap-2.5 justify-end pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsPayModalOpen(false)}
+                    className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4" /> Simpan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. MANUAL ADJUSTMENT MODAL (MANUAL) */}
+      {isManualModalOpen && selectedCustomer && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl relative overflow-hidden space-y-4 animate-in zoom-in-95 duration-150 my-8">
+              <div className="absolute top-0 left-0 right-0 h-[4px] bg-slate-900"></div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-indigo-600" /> Transaksi Penyesuaian Manual
+                </h3>
                 <button
                   type="button"
                   onClick={() => setIsManualModalOpen(false)}
-                  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                  className="text-slate-400 hover:text-slate-900 transition p-1 cursor-pointer"
                 >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-sm transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" /> Simpan Penyesuaian
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 text-xs font-semibold text-slate-600">
+                Pelanggan: <span className="font-black text-slate-900">{selectedCustomer.name.toUpperCase()}</span>
+              </div>
+
+              <form onSubmit={handleManualSubmit} className="space-y-4">
+                {/* Type toggle: Debit (Beli / Utang) vs Kredit (Setor / Potong) */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                    Tipe Penyesuaian
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setManualType("debit")}
+                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualType === "debit"
+                          ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        }`}
+                    >
+                      Debit (Beli / Utang)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualType("kredit")}
+                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualType === "kredit"
+                          ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        }`}
+                    >
+                      Kredit (Setor / Potong)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Nominal Penyesuaian (Rp) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      required
+                      value={manualAmount}
+                      onChange={(e) =>
+                        setManualAmount(e.target.value === "" ? "" : Number(e.target.value))
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-8 pr-3 text-xs font-black text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      placeholder="Masukkan jumlah nominal"
+                    />
+                  </div>
+                </div>
+
+                {/* If Kredit, choose payment method */}
+                {manualType === "kredit" && (
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                      Metode Pembayaran
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setManualPayMethod("cash")}
+                        className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualPayMethod === "cash"
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                            : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          }`}
+                      >
+                        Cash (Tunai)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setManualPayMethod("transfer")}
+                        className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualPayMethod === "transfer"
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                            : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          }`}
+                      >
+                        Transfer Bank
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Keterangan / Catatan
+                  </label>
+                  <textarea
+                    placeholder="Contoh: Saldo awal buku besar, koreksi selisih kas, dll."
+                    value={manualNotes}
+                    onChange={(e) => setManualNotes(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none resize-none"
+                  />
+                </div>
+
+                {/* Form buttons */}
+                <div className="flex gap-2.5 justify-end pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsManualModalOpen(false)}
+                    className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4" /> Simpan Penyesuaian
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

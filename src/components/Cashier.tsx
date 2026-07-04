@@ -7,7 +7,7 @@ import {
   PaymentMethod,
 } from "../types";
 import { db } from "../utils/db";
-import { formatRupiah, generateInvoiceNumber } from "../utils/format";
+import { formatRupiah, generateInvoiceNumber, formatDate } from "../utils/format";
 import ReceiptModal from "./ReceiptModal";
 import {
   ShoppingCart,
@@ -21,8 +21,11 @@ import {
   CheckCircle2,
   UserPlus,
   ChevronDown,
+  ChevronUp,
   Search,
   Shuffle,
+  History,
+  Move,
 } from "lucide-react";
 
 export default function Cashier() {
@@ -41,6 +44,11 @@ export default function Cashier() {
 
   const [tableItems, setTableItems] = useState<TableItemRow[]>([]);
   const [filterQuery, setFilterQuery] = useState("");
+  const [hasCustomOrder, setHasCustomOrder] = useState<boolean>(() => {
+    return !!localStorage.getItem("dpj_item_order_ids");
+  });
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Checkout Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState("cust-1"); // Default Pelanggan Umum
@@ -59,6 +67,44 @@ export default function Cashier() {
 
   // Receipt Modal trigger
   const [activeReceipt, setActiveReceipt] = useState<Transaction | null>(null);
+
+  // Price History Modal State
+  const [priceHistoryOpen, setPriceHistoryOpen] = useState(false);
+  const [selectedHistoryItemId, setSelectedHistoryItemId] = useState<string>("");
+  const [selectedHistoryCustomerId, setSelectedHistoryCustomerId] = useState<string>("all");
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Fetch transactions on-demand when history modal is opened
+  useEffect(() => {
+    if (priceHistoryOpen) {
+      const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+          const txs = await db.getTransactions();
+          setAllTransactions(txs);
+        } catch (err) {
+          console.error("Failed to load transactions for price history:", err);
+        } finally {
+          setLoadingHistory(false);
+        }
+      };
+      fetchHistory();
+    }
+  }, [priceHistoryOpen]);
+
+  const handleApplyPriceFromHistory = (itemId: string, price: number) => {
+    const updated = [...tableItems];
+    const index = updated.findIndex((item) => item.id === itemId);
+    if (index !== -1) {
+      updated[index] = {
+        ...updated[index],
+        price: price,
+      };
+      setTableItems(updated);
+      setPriceHistoryOpen(false);
+    }
+  };
 
   // Load master data on mount
   useEffect(() => {
@@ -82,7 +128,27 @@ export default function Cashier() {
           quantity: "" as number | "",
         };
       });
-      setTableItems(initialRows);
+
+      // Sort tableItems using custom order from localStorage if available
+      const savedOrder = localStorage.getItem("dpj_item_order_ids");
+      let sortedRows = initialRows;
+      if (savedOrder) {
+        try {
+          const orderedIds: string[] = JSON.parse(savedOrder);
+          if (Array.isArray(orderedIds)) {
+            sortedRows = [...initialRows].sort((a, b) => {
+              const indexA = orderedIds.indexOf(a.id);
+              const indexB = orderedIds.indexOf(b.id);
+              const posA = indexA === -1 ? 999999 : indexA;
+              const posB = indexB === -1 ? 999999 : indexB;
+              return posA - posB;
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse saved order", e);
+        }
+      }
+      setTableItems(sortedRows);
 
       if (customersData.length > 0) {
         // Set default to "Pelanggan Umum" if exists, else the first customer
@@ -195,6 +261,75 @@ export default function Cashier() {
 
   const handleClearAllRows = () => {
     setTableItems(prev => prev.map(item => ({ ...item, quantity: "" })));
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (filterQuery !== "") {
+      e.preventDefault();
+      return;
+    }
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (filterQuery !== "" || draggedIndex === null) return;
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex || filterQuery !== "") {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newItems = [...tableItems];
+    const [draggedItem] = newItems.splice(draggedIndex, 1);
+    newItems.splice(targetIndex, 0, draggedItem);
+
+    setTableItems(newItems);
+    setHasCustomOrder(true);
+
+    const orderIds = newItems.map((item) => item.id);
+    localStorage.setItem("dpj_item_order_ids", JSON.stringify(orderIds));
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleMoveItem = (index: number, direction: "up" | "down") => {
+    const newItems = [...tableItems];
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+
+    if (targetIndex < 0 || targetIndex >= newItems.length) return;
+
+    // Swap elements
+    const temp = newItems[index];
+    newItems[index] = newItems[targetIndex];
+    newItems[targetIndex] = temp;
+
+    setTableItems(newItems);
+    setHasCustomOrder(true);
+
+    const orderIds = newItems.map((item) => item.id);
+    localStorage.setItem("dpj_item_order_ids", JSON.stringify(orderIds));
+  };
+
+  const handleResetOrder = () => {
+    if (window.confirm("Apakah Anda yakin ingin mengembalikan urutan produk ke urutan abjad bawaan?")) {
+      localStorage.removeItem("dpj_item_order_ids");
+      const sorted = [...tableItems].sort((a, b) => a.name.localeCompare(b.name));
+      setTableItems(sorted);
+      setHasCustomOrder(false);
+    }
   };
 
   const handleKeyDown = (
@@ -385,6 +520,23 @@ export default function Cashier() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPriceHistoryOpen(true)}
+                className="rounded-xl px-2.5 py-1.5 text-[10px] font-extrabold text-blue-600 hover:text-blue-700 border border-blue-200 bg-blue-50/40 hover:bg-blue-50 transition cursor-pointer flex items-center gap-1 shrink-0"
+              >
+                <History className="w-3.5 h-3.5" /> History Harga
+              </button>
+              {hasCustomOrder && (
+                <button
+                  type="button"
+                  onClick={handleResetOrder}
+                  className="rounded-xl px-2.5 py-1.5 text-[10px] font-extrabold text-slate-500 hover:text-red-600 border border-slate-200 bg-white hover:bg-red-50/20 transition cursor-pointer flex items-center gap-1 shrink-0"
+                  title="Kembalikan urutan produk ke abjad bawaan"
+                >
+                  <Shuffle className="w-3.5 h-3.5 text-slate-400" /> Reset Urutan
+                </button>
+              )}
               {tableItems.some(r => (Number(r.quantity) || 0) > 0) && (
                 <button
                   type="button"
@@ -426,14 +578,17 @@ export default function Cashier() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200/50 bg-slate-50/30">
+                  <th className="py-3 px-3 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-center w-20">
+                    Urutan
+                  </th>
                   <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px]">
                     Nama Produk
                   </th>
                   <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-right">
                     Harga Satuan
                   </th>
-                  <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-center w-36">
-                    Kuantitas / Berat
+                  <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-center w-[120.698px]">
+                    Kuantitas
                   </th>
                   <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-right">
                     Subtotal
@@ -446,23 +601,80 @@ export default function Cashier() {
               <tbody className="divide-y divide-slate-100">
                 {visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-12 text-center text-slate-400 italic font-medium">
+                    <td colSpan={6} className="p-12 text-center text-slate-400 italic font-medium">
                       Tidak ada produk yang cocok dengan pencarian "{filterQuery}"
                     </td>
                   </tr>
                 ) : (
                   visibleRows.map((row, visibleIndex) => {
                     const isSelected = (Number(row.quantity) || 0) > 0;
+                    const isDragging = draggedIndex === row.originalIndex;
+                    const isOver = dragOverIndex === row.originalIndex && draggedIndex !== row.originalIndex;
                     return (
                       <tr
                         key={row.id}
-                        className={`transition duration-150 ${isSelected ? "bg-red-50/10 hover:bg-red-50/20" : "hover:bg-slate-50/30"
-                          }`}
+                        draggable={filterQuery === ""}
+                        onDragStart={(e) => handleDragStart(e, row.originalIndex)}
+                        onDragOver={(e) => handleDragOver(e, row.originalIndex)}
+                        onDrop={(e) => handleDrop(e, row.originalIndex)}
+                        onDragEnd={handleDragEnd}
+                        className={`transition-all duration-150 ${isDragging ? "opacity-30 bg-slate-100 border-2 border-dashed border-red-300" : ""
+                          } ${isOver ? "border-t-2 border-red-500 bg-red-50/10" : ""
+                          } ${isSelected ? "bg-red-50/10 hover:bg-red-50/20" : "hover:bg-slate-50/30"
+                          } ${filterQuery === "" ? "cursor-grab active:cursor-grabbing" : ""}`}
                       >
+                        {/* Reorder Buttons */}
+                        <td className="py-2 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {filterQuery === "" ? (
+                              <div className="p-1 text-slate-300 hover:text-slate-500 transition cursor-grab" title="Geser (Drag & Drop) untuk mengubah urutan">
+                                <Move className="w-3.5 h-3.5" />
+                              </div>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItem(row.originalIndex, "up")}
+                              disabled={row.originalIndex === 0 || filterQuery !== ""}
+                              className={`p-1 rounded transition duration-150 ${row.originalIndex === 0 || filterQuery !== ""
+                                  ? "text-slate-200 cursor-not-allowed"
+                                  : "text-slate-500 hover:text-red-600 hover:bg-slate-100 cursor-pointer"
+                                }`}
+                              title={filterQuery !== "" ? "Urutan hanya dapat diubah tanpa filter pencarian" : "Pindahkan ke atas"}
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveItem(row.originalIndex, "down")}
+                              disabled={row.originalIndex === tableItems.length - 1 || filterQuery !== ""}
+                              className={`p-1 rounded transition duration-150 ${row.originalIndex === tableItems.length - 1 || filterQuery !== ""
+                                  ? "text-slate-200 cursor-not-allowed"
+                                  : "text-slate-500 hover:text-red-600 hover:bg-slate-100 cursor-pointer"
+                                }`}
+                              title={filterQuery !== "" ? "Urutan hanya dapat diubah tanpa filter pencarian" : "Pindahkan ke bawah"}
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+
                         {/* Name */}
                         <td className="py-3 px-5 font-bold text-slate-800">
                           <div className="flex flex-col">
-                            <span>{row.name}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span>{row.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedHistoryItemId(row.id);
+                                  setPriceHistoryOpen(true);
+                                }}
+                                className="text-slate-400 hover:text-blue-600 p-0.5 rounded hover:bg-slate-100/80 transition cursor-pointer"
+                                title="Lihat Riwayat Harga Jual Produk Ini"
+                              >
+                                <History className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                             <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                               Satuan: {row.unit}
                             </span>
@@ -491,7 +703,7 @@ export default function Cashier() {
                         </td>
 
                         {/* Quantity Input */}
-                        <td className="py-2 px-5 text-center">
+                        <td className="py-2 px-5 text-center w-[120px]">
                           <div className="flex items-center justify-center gap-1.5">
                             <input
                               data-row={visibleIndex}
@@ -504,7 +716,7 @@ export default function Cashier() {
                                 handleRowChange(row.originalIndex, "quantity", e.target.value)
                               }
                               onKeyDown={(e) => handleKeyDown(e, visibleIndex, "quantity")}
-                              className={`w-20 px-2 py-1.5 text-center font-mono font-extrabold rounded-lg border outline-none transition-all duration-200 ${isSelected
+                              className={`w-[60px] px-2 py-1.5 text-center font-mono font-extrabold rounded-lg border outline-none transition-all duration-200 ${isSelected
                                   ? "text-red-700 border-red-300 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500"
                                   : "text-slate-800 border-slate-200 bg-white focus:border-red-500 focus:ring-1 focus:ring-red-500"
                                 }`}
@@ -836,59 +1048,61 @@ export default function Cashier() {
       {quickCustOpen && (
         <div
           id="quick-cust-modal-container"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
         >
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl relative border-t-4 border-red-500 animate-in zoom-in-95 duration-150">
-            <h4 className="font-black text-slate-900 text-sm mb-4 tracking-tight uppercase">
-              Registrasi Pelanggan Baru
-            </h4>
+          <div className="flex min-h-full items-center justify-center">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl relative border-t-4 border-red-500 animate-in zoom-in-95 duration-150 my-8">
+              <h4 className="font-black text-slate-900 text-sm mb-4 tracking-tight uppercase">
+                Registrasi Pelanggan Baru
+              </h4>
 
-            <form onSubmit={handleQuickAddCustomer} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                  Nama Lengkap / Toko <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="quick-customer-name-input"
-                  type="text"
-                  required
-                  placeholder="Nama Pelanggan"
-                  value={quickCustName}
-                  onChange={(e) => setQuickCustName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-900 focus:border-red-500 focus:outline-none bg-slate-50/50"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                  No. Telepon
-                </label>
-                <input
-                  id="quick-customer-phone-input"
-                  type="text"
-                  placeholder="0812xxxx"
-                  value={quickCustPhone}
-                  onChange={(e) => setQuickCustPhone(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-900 focus:border-red-500 focus:outline-none bg-slate-50/50"
-                />
-              </div>
+              <form onSubmit={handleQuickAddCustomer} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Nama Lengkap / Toko <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="quick-customer-name-input"
+                    type="text"
+                    required
+                    placeholder="Nama Pelanggan"
+                    value={quickCustName}
+                    onChange={(e) => setQuickCustName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-900 focus:border-red-500 focus:outline-none bg-slate-50/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    No. Telepon
+                  </label>
+                  <input
+                    id="quick-customer-phone-input"
+                    type="text"
+                    placeholder="0812xxxx"
+                    value={quickCustPhone}
+                    onChange={(e) => setQuickCustPhone(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-900 focus:border-red-500 focus:outline-none bg-slate-50/50"
+                  />
+                </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setQuickCustOpen(false)}
-                  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  id="quick-customer-submit-btn"
-                  type="submit"
-                  className="rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition cursor-pointer"
-                >
-                  Tambah Pelanggan
-                </button>
-              </div>
-            </form>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setQuickCustOpen(false)}
+                    className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    id="quick-customer-submit-btn"
+                    type="submit"
+                    className="rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-4 py-2 text-xs font-bold shadow-md shadow-red-600/10 transition cursor-pointer"
+                  >
+                    Tambah Pelanggan
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -899,6 +1113,190 @@ export default function Cashier() {
           transaction={activeReceipt}
           onClose={() => setActiveReceipt(null)}
         />
+      )}
+
+      {/* PRICE HISTORY MODAL */}
+      {priceHistoryOpen && (
+        <div
+          id="price-history-modal-container"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        >
+          <div className="flex min-h-full items-center justify-center">
+            <div className="w-full max-w-4xl rounded-2xl bg-white p-6 shadow-2xl relative border-t-4 border-blue-500 animate-in zoom-in-95 duration-150 flex flex-col max-h-[85vh] my-8">
+
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <History className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <h4 className="font-black text-slate-900 text-sm tracking-tight uppercase">
+                      Riwayat Harga Jual Produk
+                    </h4>
+                    <p className="text-[10px] text-slate-400 font-semibold">
+                      Cari dan bandingkan harga jual terdahulu untuk setiap produk & pelanggan
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedHistoryItemId("");
+                    setPriceHistoryOpen(false);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+
+              {/* Filter Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60 mb-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Filter Produk
+                  </label>
+                  <select
+                    value={selectedHistoryItemId}
+                    onChange={(e) => setSelectedHistoryItemId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2 px-3 text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none transition-all duration-200"
+                  >
+                    <option value="">-- Semua Produk --</option>
+                    {items.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.unit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Filter Pelanggan
+                  </label>
+                  <select
+                    value={selectedHistoryCustomerId}
+                    onChange={(e) => setSelectedHistoryCustomerId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2 px-3 text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none transition-all duration-200"
+                  >
+                    <option value="all">-- Semua Pelanggan --</option>
+                    {customers.map((cust) => (
+                      <option key={cust.id} value={cust.id}>
+                        {cust.name} {cust.phone && cust.phone !== "-" ? `(${cust.phone})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Table Area (Scrollable) */}
+              <div className="flex-1 overflow-y-auto border border-slate-150 rounded-xl bg-white max-h-[400px]">
+                {loadingHistory ? (
+                  <div className="flex flex-col items-center justify-center p-12 space-y-2 text-slate-400">
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
+                    <span className="text-xs font-semibold">Memuat riwayat transaksi...</span>
+                  </div>
+                ) : (
+                  (() => {
+                    // Filter and compile history records
+                    const historyRecords = [];
+                    const sortedTxs = [...allTransactions].sort(
+                      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+                    );
+
+                    for (const tx of sortedTxs) {
+                      if (selectedHistoryCustomerId !== "all" && tx.customerId !== selectedHistoryCustomerId) {
+                        continue;
+                      }
+                      for (const item of tx.items) {
+                        if (selectedHistoryItemId && item.itemId !== selectedHistoryItemId) {
+                          continue;
+                        }
+                        historyRecords.push({
+                          transactionId: tx.id,
+                          invoiceNumber: tx.invoiceNumber,
+                          customerName: tx.customerName,
+                          customerId: tx.customerId,
+                          date: tx.date,
+                          itemName: item.name,
+                          itemId: item.itemId,
+                          price: item.price,
+                          quantity: item.quantity,
+                          subtotal: item.subtotal,
+                          unit: item.unit,
+                        });
+                      }
+                    }
+
+                    if (historyRecords.length === 0) {
+                      return (
+                        <div className="p-12 text-center text-slate-400 italic text-xs">
+                          Tidak ada riwayat harga transaksi yang cocok dengan filter di atas.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
+                            <th className="py-3 px-4">Waktu Transaksi</th>
+                            <th className="py-3 px-4">Nota / Invoice</th>
+                            <th className="py-3 px-4">Nama Pelanggan</th>
+                            <th className="py-3 px-4">Produk</th>
+                            <th className="py-3 px-4 text-center">Kuantitas</th>
+                            <th className="py-3 px-4 text-right">Harga Satuan</th>
+                            <th className="py-3 px-4 text-center">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {historyRecords.map((rec, i) => (
+                            <tr key={`${rec.transactionId}-${rec.itemId}-${i}`} className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-4 font-semibold text-slate-500 whitespace-nowrap">
+                                {formatDate(rec.date)}
+                              </td>
+                              <td className="py-2.5 px-4 font-mono font-bold text-slate-700">
+                                {rec.invoiceNumber}
+                              </td>
+                              <td className="py-2.5 px-4 font-bold text-slate-800">
+                                {rec.customerName}
+                              </td>
+                              <td className="py-2.5 px-4 text-slate-800">
+                                <span className="font-bold">{rec.itemName}</span>
+                              </td>
+                              <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-600">
+                                {rec.quantity} {rec.unit}
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono font-black text-slate-800">
+                                {formatRupiah(rec.price)}
+                              </td>
+                              <td className="py-2.5 px-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplyPriceFromHistory(rec.itemId, rec.price)}
+                                  className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 hover:border-blue-200 px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wide transition cursor-pointer"
+                                >
+                                  Gunakan
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    );
+                  })()
+                )}
+              </div>
+
+              {/* Bottom Note */}
+              <div className="mt-4 text-[10px] text-slate-400 font-semibold flex items-center gap-1.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200/50">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                <span>
+                  Tip: Klik tombol <b>"Gunakan"</b> untuk menyalin harga satuan historis tersebut langsung ke baris input transaksi aktif kasir saat ini.
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
