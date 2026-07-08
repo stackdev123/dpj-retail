@@ -805,14 +805,22 @@ export default function Cashier() {
                   setCustomerSearchQuery(e.target.value);
                   setIsCustDropdownOpen(true);
                 }}
-                onFocus={() => setIsCustDropdownOpen(true)}
+                onFocus={() => {
+                  setCustomerSearchQuery("");
+                  setIsCustDropdownOpen(true);
+                }}
                 onBlur={handleCustBlur}
                 placeholder="Cari nama pelanggan..."
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-8 text-xs font-bold text-slate-900 focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none transition-all duration-200"
               />
               <button
                 type="button"
-                onClick={() => setIsCustDropdownOpen(!isCustDropdownOpen)}
+                onClick={() => {
+                  if (!isCustDropdownOpen) {
+                    setCustomerSearchQuery("");
+                  }
+                  setIsCustDropdownOpen(!isCustDropdownOpen);
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
               >
                 <ChevronDown className="w-4 h-4" />

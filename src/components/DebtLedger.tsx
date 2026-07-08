@@ -91,6 +91,13 @@ export default function DebtLedger() {
     };
   }, []);
 
+  // Reset search text when dropdown closes
+  useEffect(() => {
+    if (!isDropdownOpen) {
+      setCustomerSearchText("");
+    }
+  }, [isDropdownOpen]);
+
   // Month filter states
   const [filterType, setFilterType] = useState<"all" | "month">("month");
   const [selectedMonth, setSelectedMonth] = useState(() => {
