@@ -223,6 +223,7 @@ export const db = {
         notes: notes || undefined,
         cashAmount,
         transferAmount,
+        usePenerimaan: tx.use_penerimaan || false,
         items: tx.transaction_items.map((item: any) => ({
           itemId: item.item_id,
           name: item.name,
@@ -230,6 +231,7 @@ export const db = {
           quantity: Number(item.quantity),
           subtotal: Number(item.subtotal),
           unit: item.unit,
+          receivedQuantity: item.received_quantity !== null && item.received_quantity !== undefined ? Number(item.received_quantity) : undefined,
         })),
       };
     });
@@ -257,6 +259,7 @@ export const db = {
       date: transaction.date,
       print_count: transaction.printCount || 0,
       notes: notes || null,
+      use_penerimaan: transaction.usePenerimaan || false,
     };
 
     // Insert transaction
@@ -280,6 +283,7 @@ export const db = {
       quantity: item.quantity,
       subtotal: item.subtotal,
       unit: item.unit,
+      received_quantity: item.receivedQuantity !== undefined ? item.receivedQuantity : null,
     }));
 
     await supabase.from("transaction_items").insert(itemsPayload);
@@ -832,6 +836,7 @@ export const db = {
       const { data, error } = await supabase
         .from("activity_logs")
         .select("*")
+        .neq("action", "HEARTBEAT")
         .order("created_at", { ascending: false });
       if (!error && data) {
         const mapped = data.map((log) => ({
@@ -851,9 +856,10 @@ export const db = {
     const localLogsStr = localStorage.getItem("dpj_activity_logs");
     if (localLogsStr) {
       try {
-        const parsed = JSON.parse(localLogsStr);
-        setCached("activityLogs", parsed);
-        return parsed;
+        const parsed = JSON.parse(localLogsStr) as ActivityLog[];
+        const filtered = parsed.filter(log => log.action !== 'HEARTBEAT');
+        setCached("activityLogs", filtered);
+        return filtered;
       } catch (e) {
         return [];
       }
@@ -982,6 +988,7 @@ export const db = {
       amount_paid: transaction.amountPaid,
       remaining_debt: remainingDebt,
       notes: notes || null,
+      use_penerimaan: transaction.usePenerimaan || false,
     };
 
     // 4. Update transaction
@@ -1013,6 +1020,7 @@ export const db = {
       quantity: item.quantity,
       subtotal: item.subtotal,
       unit: item.unit,
+      received_quantity: item.receivedQuantity !== undefined ? item.receivedQuantity : null,
     }));
 
     const { error: insError } = await supabase
@@ -1226,10 +1234,50 @@ export const db = {
 
   // --- ONLINE STATUS API ---
   async updateOnlineStatus(userId: string, isLoggingOut: boolean = false): Promise<void> {
-    const users = await this.getUsers();
-    const user = users.find((u) => u.id === userId);
+    let user: any = null;
+    try {
+      const savedUser = localStorage.getItem("dpj_current_user");
+      if (savedUser) {
+        user = JSON.parse(savedUser);
+      }
+    } catch (e) { }
+
+    if (!user || user.id !== userId) {
+      try {
+        const users = await this.getUsers();
+        user = users.find((u) => u.id === userId);
+      } catch (e) { }
+    }
+
     if (!user) return;
 
+    const now = new Date();
+    const hbId = `hb-${userId}`;
+
+    // 1. Try to update online status on Supabase using activity_logs table (upsert/delete)
+    try {
+      if (isLoggingOut) {
+        await supabase.from("activity_logs").delete().eq("id", hbId);
+      } else {
+        await supabase.from("activity_logs").upsert({
+          id: hbId,
+          action: "HEARTBEAT",
+          module: "Sistem",
+          description: JSON.stringify({
+            id: user.id,
+            username: user.username,
+            fullname: user.fullname,
+            role: user.role,
+            lastActive: now.toISOString(),
+          }),
+          created_at: now.toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to update online status on Supabase, using local storage fallback:", e);
+    }
+
+    // 2. Also update local storage for dual-sync reliability and fallback
     let onlineUsers: any[] = [];
     try {
       const stored = localStorage.getItem("dpj_online_users");
@@ -1240,12 +1288,10 @@ export const db = {
       onlineUsers = [];
     }
 
-    const now = new Date();
-    // Filter out old inactive heartbeats (older than 3 minutes)
     onlineUsers = onlineUsers.filter((u) => {
       const lastActive = new Date(u.lastActive);
       const diffMs = now.getTime() - lastActive.getTime();
-      return diffMs < 3 * 60 * 1000 && u.id !== userId;
+      return diffMs < 5 * 60 * 1000 && u.id !== userId;
     });
 
     if (!isLoggingOut) {
@@ -1262,6 +1308,42 @@ export const db = {
   },
 
   async getOnlineUsers(): Promise<any[]> {
+    const now = new Date();
+
+    // 1. Try to fetch active heartbeat rows from Supabase
+    try {
+      const { data, error } = await supabase
+        .from("activity_logs")
+        .select("*")
+        .eq("action", "HEARTBEAT");
+
+      if (!error && data) {
+        const onlineUsers: any[] = [];
+        data.forEach((log) => {
+          try {
+            const parsed = JSON.parse(log.description);
+            const lastActive = new Date(log.created_at || parsed.lastActive);
+            const diffMs = now.getTime() - lastActive.getTime();
+            // Active if updated in the last 5 minutes (handles browser tab sleep and background limits)
+            if (diffMs < 5 * 60 * 1000) {
+              onlineUsers.push({
+                ...parsed,
+                lastActive: lastActive.toISOString(),
+              });
+            }
+          } catch (e) {
+            // Ignore bad parses
+          }
+        });
+
+        localStorage.setItem("dpj_online_users", JSON.stringify(onlineUsers));
+        return onlineUsers;
+      }
+    } catch (e) {
+      console.warn("Failed to fetch online users from Supabase, falling back to local storage:", e);
+    }
+
+    // 2. Fallback to local storage
     let onlineUsers: any[] = [];
     try {
       const stored = localStorage.getItem("dpj_online_users");
@@ -1272,12 +1354,10 @@ export const db = {
       onlineUsers = [];
     }
 
-    const now = new Date();
-    // Filter out inactive entries (older than 2 minutes)
     onlineUsers = onlineUsers.filter((u) => {
       const lastActive = new Date(u.lastActive);
       const diffMs = now.getTime() - lastActive.getTime();
-      return diffMs < 2 * 60 * 1000;
+      return diffMs < 5 * 60 * 1000;
     });
 
     return onlineUsers;

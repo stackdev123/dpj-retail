@@ -154,16 +154,43 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
 
-    // Immediately register online
-    db.updateOnlineStatus(currentUser.id);
+    let lastHeartbeatTime = 0;
 
-    // Set up heartbeat interval
+    const sendHeartbeat = async (force = false) => {
+      const now = Date.now();
+      // Throttle user interaction heartbeats to once every 30 seconds to prevent spamming
+      if (!force && now - lastHeartbeatTime < 30000) return;
+
+      lastHeartbeatTime = now;
+      try {
+        await db.updateOnlineStatus(currentUser.id);
+      } catch (e) {
+        console.warn("Heartbeat failed:", e);
+      }
+    };
+
+    // Immediately register online
+    sendHeartbeat(true);
+
+    // Set up heartbeat interval (every 30 seconds)
     const interval = setInterval(() => {
-      db.updateOnlineStatus(currentUser.id);
-    }, 20000); // every 20 seconds
+      sendHeartbeat(true);
+    }, 30000);
+
+    // Track user active behaviors
+    const handleActivity = () => {
+      sendHeartbeat(false);
+    };
+
+    window.addEventListener('mousedown', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
 
     return () => {
       clearInterval(interval);
+      window.removeEventListener('mousedown', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
     };
   }, [currentUser]);
 
