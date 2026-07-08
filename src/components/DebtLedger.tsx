@@ -85,11 +85,18 @@ export default function DebtLedger() {
   // Modal open states
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
 
   // Pay Modal form state
   const [repayAmount, setRepayAmount] = useState<number | "">("");
   const [repayMethod, setRepayMethod] = useState<"cash" | "transfer">("cash");
   const [repayNotes, setRepayNotes] = useState("");
+
+  // Edit Payment Modal states
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editPaymentAmount, setEditPaymentAmount] = useState<number | "">("");
+  const [editPaymentMethod, setEditPaymentMethod] = useState<"cash" | "transfer">("cash");
+  const [editPaymentNotes, setEditPaymentNotes] = useState("");
 
   // Manual Transaction Modal form state
   const [manualType, setManualType] = useState<"debit" | "kredit">("debit");
@@ -160,10 +167,27 @@ export default function DebtLedger() {
     }
   }, [customers, selectedCustomerId]);
 
-  // Reset expanded dates when customer changes
+  // Auto-expand all dates when customer or data changes
   useEffect(() => {
-    setExpandedDates({});
-  }, [selectedCustomerId]);
+    if (!selectedCustomerId) return;
+
+    const keys: { [key: string]: boolean } = {};
+    const temp: any[] = [];
+
+    transactions.filter(t => t.customerId === selectedCustomerId).forEach(tx => {
+      temp.push(tx.date);
+    });
+    debtPayments.filter(p => p.customerId === selectedCustomerId).forEach(pay => {
+      temp.push(pay.date);
+    });
+
+    temp.forEach(d => {
+      const key = getLocalDateString(d);
+      keys[key] = true;
+    });
+
+    setExpandedDates(keys);
+  }, [selectedCustomerId, filterType, selectedMonth, transactions, debtPayments]);
 
   const handleRefresh = () => {
     loadData();
@@ -299,6 +323,64 @@ export default function DebtLedger() {
     } catch (err) {
       console.error(err);
       alert("Gagal mencatat setoran.");
+    }
+  };
+
+  const handleExpandAll = () => {
+    const keys: { [key: string]: boolean } = {};
+    ledgerEntries.forEach((entry) => {
+      const key = getLocalDateString(entry.date);
+      keys[key] = true;
+    });
+    setExpandedDates(keys);
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedDates({});
+  };
+
+  const handleOpenEditPayment = (entry: any) => {
+    setEditingPaymentId(entry.id);
+    setEditPaymentAmount(entry.credit);
+    setEditPaymentMethod(entry.paymentMethod);
+    setEditPaymentNotes(entry.description || "");
+    setIsEditPaymentModalOpen(true);
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus pembayaran ini? Tindakan ini akan mengembalikan tagihan pelanggan.")) {
+      return;
+    }
+    try {
+      await db.deleteDebtPayment(paymentId);
+      await loadData();
+      alert("Pembayaran berhasil dihapus!");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghapus pembayaran.");
+    }
+  };
+
+  const handleEditPaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPaymentId || !editPaymentAmount || Number(editPaymentAmount) <= 0) {
+      alert("Masukkan jumlah nominal yang valid.");
+      return;
+    }
+    try {
+      await db.editDebtPayment(
+        editingPaymentId,
+        Number(editPaymentAmount),
+        editPaymentMethod,
+        editPaymentNotes.trim()
+      );
+      await loadData();
+      setIsEditPaymentModalOpen(false);
+      setEditingPaymentId(null);
+      alert("Pembayaran berhasil diubah!");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal mengubah pembayaran.");
     }
   };
 
@@ -1188,6 +1270,24 @@ export default function DebtLedger() {
                 <p className="text-xs text-slate-500">Ledger Buku Besar - {selectedCustomer?.name.toUpperCase()}</p>
               </div>
 
+              {/* TOGGLE CONTROLS */}
+              <div className="flex justify-end gap-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={handleExpandAll}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider py-2 px-3.5 rounded-lg shadow-sm transition cursor-pointer"
+                >
+                  Buka Semua Detail
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCollapseAll}
+                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[10px] font-black uppercase tracking-wider py-2 px-3.5 rounded-lg shadow-sm transition cursor-pointer"
+                >
+                  Tutup Semua Detail
+                </button>
+              </div>
+
               {/* GRID STYLE TABLE ACCORDING TO USER'S SCREENSHOT */}
               <div className="border-2 border-slate-950 rounded-xl overflow-hidden shadow-sm bg-white">
                 <table className="w-full border-collapse">
@@ -1363,20 +1463,36 @@ export default function DebtLedger() {
                               return (
                                 <tr key={`${entry.id}-${subIdx}`} className="bg-slate-50/60 hover:bg-slate-100/60 transition-all text-slate-500">
                                   <td className="py-2.5 px-3 border-r border-slate-950">
-                                    <div className="flex items-center gap-1.5 pl-3 text-[11px] font-medium font-sans text-left text-slate-500">
-                                      <span className="text-indigo-400 font-bold">↳</span>
-                                      <span className="truncate max-w-[150px] sm:max-w-[200px]" title={getEntryLabel(entry)}>
-                                        {getEntryLabel(entry)}
-                                      </span>
+                                    <div className="flex items-center justify-between pl-3 text-[11px] font-medium font-sans text-left text-slate-500">
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <span className="text-indigo-400 font-bold">↳</span>
+                                        <span className="truncate max-w-[150px] sm:max-w-[200px]" title={getEntryLabel(entry)}>
+                                          {getEntryLabel(entry)}
+                                        </span>
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
                                     {debitSubVal > 0 ? formatRupiah(debitSubVal) : "-"}
                                   </td>
-                                  <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
+                                  <td
+                                    onClick={entry.type === "payment" && creditTrfSub > 0 ? () => handleOpenEditPayment(entry) : undefined}
+                                    className={`py-2.5 px-3 text-center text-[11px] font-mono border-r border-slate-950 select-none ${entry.type === "payment" && creditTrfSub > 0
+                                        ? "text-indigo-600 font-extrabold hover:bg-amber-50 hover:text-amber-800 hover:scale-105 cursor-pointer transition-all underline decoration-dashed decoration-indigo-400 underline-offset-2"
+                                        : "text-slate-500"
+                                      }`}
+                                    title={entry.type === "payment" && creditTrfSub > 0 ? "Klik nominal ini untuk mengubah atau menghapus setoran" : undefined}
+                                  >
                                     {creditTrfSub > 0 ? formatRupiah(creditTrfSub) : "-"}
                                   </td>
-                                  <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
+                                  <td
+                                    onClick={entry.type === "payment" && creditCashSub > 0 ? () => handleOpenEditPayment(entry) : undefined}
+                                    className={`py-2.5 px-3 text-center text-[11px] font-mono border-r border-slate-950 select-none ${entry.type === "payment" && creditCashSub > 0
+                                        ? "text-emerald-600 font-extrabold hover:bg-amber-50 hover:text-amber-800 hover:scale-105 cursor-pointer transition-all underline decoration-dashed decoration-emerald-400 underline-offset-2"
+                                        : "text-slate-500"
+                                      }`}
+                                    title={entry.type === "payment" && creditCashSub > 0 ? "Klik nominal ini untuk mengubah atau menghapus setoran" : undefined}
+                                  >
                                     {creditCashSub > 0 ? formatRupiah(creditCashSub) : "-"}
                                   </td>
                                   <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500">
@@ -1809,6 +1925,134 @@ export default function DebtLedger() {
                   >
                     <Check className="w-4 h-4" /> Simpan Penyesuaian
                   </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. EDIT PAYMENT MODAL */}
+      {isEditPaymentModalOpen && selectedCustomer && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl relative overflow-hidden space-y-4 animate-in zoom-in-95 duration-150 my-8">
+              <div className="absolute top-0 left-0 right-0 h-[4px] bg-amber-500"></div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-amber-500" /> Ubah Pembayaran / Setoran
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsEditPaymentModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-900 transition p-1 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 text-xs font-semibold text-slate-600 space-y-1">
+                <div>
+                  Pelanggan: <span className="font-black text-slate-900">{selectedCustomer.name.toUpperCase()}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
+                {/* Edit Payment Amount */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Jumlah Setor (Rp) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      required
+                      value={editPaymentAmount}
+                      onChange={(e) =>
+                        setEditPaymentAmount(e.target.value === "" ? "" : Number(e.target.value))
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-8 pr-3 text-xs font-black text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      placeholder="Masukkan jumlah pembayaran"
+                    />
+                  </div>
+                </div>
+
+                {/* Edit Payment Method */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                    Metode Setoran
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditPaymentMethod("cash")}
+                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${editPaymentMethod === "cash"
+                          ? "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        }`}
+                    >
+                      Cash (Tunai)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPaymentMethod("transfer")}
+                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${editPaymentMethod === "transfer"
+                          ? "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        }`}
+                    >
+                      Transfer Bank
+                    </button>
+                  </div>
+                </div>
+
+                {/* Edit Payment Notes */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Catatan Setoran
+                  </label>
+                  <textarea
+                    placeholder="Contoh: Cicilan nota ke-3, bayar lunas, dll."
+                    value={editPaymentNotes}
+                    onChange={(e) => setEditPaymentNotes(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none resize-none"
+                  />
+                </div>
+
+                {/* Form buttons */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (editingPaymentId) {
+                        setIsEditPaymentModalOpen(false);
+                        await handleDeletePayment(editingPaymentId);
+                      }
+                    }}
+                    className="rounded-xl bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-750 border border-red-200 px-3.5 py-2.5 text-xs font-black uppercase tracking-wider transition cursor-pointer"
+                  >
+                    Hapus Setoran
+                  </button>
+                  <div className="flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditPaymentModalOpen(false)}
+                      className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" /> Simpan Perubahan
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>

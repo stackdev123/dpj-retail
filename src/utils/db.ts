@@ -449,6 +449,145 @@ export const db = {
     invalidateCache(["transactions", "debtPayments", "customerDebtSummaries", "activityLogs"]);
   },
 
+  async deleteDebtPayment(paymentId: string): Promise<void> {
+    const { data: payment, error: getError } = await supabase
+      .from("debt_payments")
+      .select("*")
+      .eq("id", paymentId)
+      .single();
+
+    if (getError || !payment) {
+      console.warn("Payment not found for delete:", getError);
+      throw new Error("Payment not found");
+    }
+
+    const txId = payment.transaction_id;
+    const customerId = payment.customer_id;
+    const amountPaid = Number(payment.amount_paid);
+
+    const { error: delError } = await supabase
+      .from("debt_payments")
+      .delete()
+      .eq("id", paymentId);
+
+    if (delError) {
+      console.warn("Error deleting payment:", delError);
+      throw delError;
+    }
+
+    if (txId) {
+      const { data: transaction } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("id", txId)
+        .single();
+
+      if (transaction) {
+        const { data: otherPayments } = await supabase
+          .from("debt_payments")
+          .select("amount_paid")
+          .eq("transaction_id", txId);
+
+        const totalPayments = otherPayments ? otherPayments.reduce((sum, p) => sum + Number(p.amount_paid), 0) : 0;
+        const remainingDebt = Math.max(0, Number(transaction.total_amount) - Number(transaction.amount_paid) - totalPayments);
+
+        await supabase
+          .from("transactions")
+          .update({ remaining_debt: remainingDebt })
+          .eq("id", txId);
+      }
+    }
+
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("id", customerId)
+      .single();
+    const customerName = customer ? customer.name : "Pelanggan";
+
+    await this.addActivityLog(
+      "DELETE",
+      "Pelanggan",
+      `Menghapus Pembayaran Piutang: ${customerName} sebesar Rp ${amountPaid.toLocaleString("id-ID")}`
+    );
+
+    invalidateCache(["transactions", "debtPayments", "customerDebtSummaries", "activityLogs"]);
+  },
+
+  async editDebtPayment(
+    paymentId: string,
+    updatedAmount: number,
+    paymentMethod: "cash" | "transfer",
+    notes: string,
+  ): Promise<void> {
+    const { data: payment, error: getError } = await supabase
+      .from("debt_payments")
+      .select("*")
+      .eq("id", paymentId)
+      .single();
+
+    if (getError || !payment) {
+      console.warn("Payment not found for edit:", getError);
+      throw new Error("Payment not found");
+    }
+
+    const txId = payment.transaction_id;
+    const customerId = payment.customer_id;
+    const oldAmount = Number(payment.amount_paid);
+
+    const { error: updError } = await supabase
+      .from("debt_payments")
+      .update({
+        amount_paid: updatedAmount,
+        payment_method: paymentMethod,
+        notes: notes,
+      })
+      .eq("id", paymentId);
+
+    if (updError) {
+      console.warn("Error updating payment:", updError);
+      throw updError;
+    }
+
+    if (txId) {
+      const { data: transaction } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("id", txId)
+        .single();
+
+      if (transaction) {
+        const { data: otherPayments } = await supabase
+          .from("debt_payments")
+          .select("amount_paid")
+          .eq("transaction_id", txId);
+
+        const totalPayments = otherPayments ? otherPayments.reduce((sum, p) => sum + Number(p.amount_paid), 0) : 0;
+        const remainingDebt = Math.max(0, Number(transaction.total_amount) - Number(transaction.amount_paid) - totalPayments);
+
+        await supabase
+          .from("transactions")
+          .update({ remaining_debt: remainingDebt })
+          .eq("id", txId);
+      }
+    }
+
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("id", customerId)
+      .single();
+    const customerName = customer ? customer.name : "Pelanggan";
+
+    await this.addActivityLog(
+      "EDIT",
+      "Pelanggan",
+      `Mengubah Pembayaran Piutang: ${customerName} dari Rp ${oldAmount.toLocaleString("id-ID")} menjadi Rp ${updatedAmount.toLocaleString("id-ID")}`
+    );
+
+    invalidateCache(["transactions", "debtPayments", "customerDebtSummaries", "activityLogs"]);
+  },
+
   // --- PRICE MEMORY API ---
   async getPriceMemories(): Promise<PriceMemory> {
     const cached = getCached<PriceMemory>("priceMemories");
