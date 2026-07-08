@@ -264,6 +264,7 @@ export default function EditTransactionModal({
             ...transaction,
             customerId: customer.id,
             customerName: customer.name,
+            usePenerimaan: transaction.usePenerimaan,
             items: cartItems.map((item) => ({
                 itemId: item.itemId,
                 name: item.name,
@@ -271,6 +272,7 @@ export default function EditTransactionModal({
                 quantity: Number(item.quantity) || 0,
                 subtotal: Number(item.subtotal) || 0,
                 unit: item.unit,
+                receivedQuantity: item.receivedQuantity,
             })),
             totalAmount: cartTotal,
             paymentMethod,

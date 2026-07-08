@@ -484,7 +484,7 @@ export function compileEscPosReceipt(
     pushText("Halal, Higienis & Berkualitas\n");
     pushText("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan\n");
     pushText("Kec. Bojong Kab. Purwakarta\n");
-    pushText("Telp/Hp. +62 877-6908-0999\n");
+    pushText("Telp/Hp. +62 818-0734-9347\n");
     pushText("------------------------------------------------\n"); // 48 chars
 
     // 5. Metadata (Left Aligned)
@@ -492,6 +492,9 @@ export function compileEscPosReceipt(
     pushText(`No. Nota  : ${transaction.invoiceNumber}\n`);
     pushText(`Tanggal   : ${formatDate(transaction.date, true)}\n`);
     pushText(`Pelanggan : ${transaction.customerName}\n`);
+    if (transaction.notes && transaction.notes.trim()) {
+        pushText(`Catatan   : ${transaction.notes.trim()}\n`);
+    }
     pushText("================================================\n"); // 48 chars
 
     // 6. Items Table (48 Characters width column layout)
@@ -505,7 +508,16 @@ export function compileEscPosReceipt(
         pushText(`${itemName}\n`);
 
         // Row 2: Qty x Price and Subtotal
-        const qtyPriceStr = `   ${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`;
+        let qtyPriceStr = "";
+        if (transaction.usePenerimaan) {
+            const qtyTerima =
+                item.receivedQuantity !== undefined && item.receivedQuantity !== null
+                    ? item.receivedQuantity
+                    : item.quantity;
+            qtyPriceStr = `   Trm: ${qtyTerima} ${item.unit} x ${formatRupiah(item.price)} (Krm: ${item.quantity})`;
+        } else {
+            qtyPriceStr = `   ${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`;
+        }
         const subtotalStr = formatRupiah(item.subtotal);
 
         // Pad spaces between Qty string and Subtotal to fill up 48 chars

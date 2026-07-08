@@ -21,9 +21,11 @@ import {
   CheckCircle2,
   UserPlus,
   ChevronDown,
+  ChevronUp,
   Search,
   Shuffle,
   History,
+  Move,
 } from "lucide-react";
 
 export default function Cashier() {
@@ -42,9 +44,38 @@ export default function Cashier() {
 
   const [tableItems, setTableItems] = useState<TableItemRow[]>([]);
   const [filterQuery, setFilterQuery] = useState("");
+  const [hasCustomOrder, setHasCustomOrder] = useState<boolean>(() => {
+    return !!localStorage.getItem("dpj_item_order_ids");
+  });
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Checkout Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState("cust-1"); // Default Pelanggan Umum
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [isCustDropdownOpen, setIsCustDropdownOpen] = useState(false);
+  const selectedCustomerObj = customers.find((c) => c.id === selectedCustomerId);
+
+  useEffect(() => {
+    if (selectedCustomerObj) {
+      setCustomerSearchQuery(selectedCustomerObj.name);
+    }
+  }, [selectedCustomerId, customers]);
+
+  const filteredCustomersForSelect = customers.filter((c) =>
+    c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+    (c.phone && c.phone.toLowerCase().includes(customerSearchQuery.toLowerCase()))
+  );
+
+  const handleCustBlur = () => {
+    setTimeout(() => {
+      setIsCustDropdownOpen(false);
+      if (selectedCustomerObj) {
+        setCustomerSearchQuery(selectedCustomerObj.name);
+      }
+    }, 150);
+  };
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState<number | "">("");
   const [transactionNotes, setTransactionNotes] = useState("");
@@ -121,7 +152,27 @@ export default function Cashier() {
           quantity: "" as number | "",
         };
       });
-      setTableItems(initialRows);
+
+      // Sort tableItems using custom order from localStorage if available
+      const savedOrder = localStorage.getItem("dpj_item_order_ids");
+      let sortedRows = initialRows;
+      if (savedOrder) {
+        try {
+          const orderedIds: string[] = JSON.parse(savedOrder);
+          if (Array.isArray(orderedIds)) {
+            sortedRows = [...initialRows].sort((a, b) => {
+              const indexA = orderedIds.indexOf(a.id);
+              const indexB = orderedIds.indexOf(b.id);
+              const posA = indexA === -1 ? 999999 : indexA;
+              const posB = indexB === -1 ? 999999 : indexB;
+              return posA - posB;
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse saved order", e);
+        }
+      }
+      setTableItems(sortedRows);
 
       if (customersData.length > 0) {
         // Set default to "Pelanggan Umum" if exists, else the first customer
@@ -234,6 +285,75 @@ export default function Cashier() {
 
   const handleClearAllRows = () => {
     setTableItems(prev => prev.map(item => ({ ...item, quantity: "" })));
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (filterQuery !== "") {
+      e.preventDefault();
+      return;
+    }
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (filterQuery !== "" || draggedIndex === null) return;
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex || filterQuery !== "") {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newItems = [...tableItems];
+    const [draggedItem] = newItems.splice(draggedIndex, 1);
+    newItems.splice(targetIndex, 0, draggedItem);
+
+    setTableItems(newItems);
+    setHasCustomOrder(true);
+
+    const orderIds = newItems.map((item) => item.id);
+    localStorage.setItem("dpj_item_order_ids", JSON.stringify(orderIds));
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleMoveItem = (index: number, direction: "up" | "down") => {
+    const newItems = [...tableItems];
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+
+    if (targetIndex < 0 || targetIndex >= newItems.length) return;
+
+    // Swap elements
+    const temp = newItems[index];
+    newItems[index] = newItems[targetIndex];
+    newItems[targetIndex] = temp;
+
+    setTableItems(newItems);
+    setHasCustomOrder(true);
+
+    const orderIds = newItems.map((item) => item.id);
+    localStorage.setItem("dpj_item_order_ids", JSON.stringify(orderIds));
+  };
+
+  const handleResetOrder = () => {
+    if (window.confirm("Apakah Anda yakin ingin mengembalikan urutan produk ke urutan abjad bawaan?")) {
+      localStorage.removeItem("dpj_item_order_ids");
+      const sorted = [...tableItems].sort((a, b) => a.name.localeCompare(b.name));
+      setTableItems(sorted);
+      setHasCustomOrder(false);
+    }
   };
 
   const handleKeyDown = (
@@ -431,6 +551,16 @@ export default function Cashier() {
               >
                 <History className="w-3.5 h-3.5" /> History Harga
               </button>
+              {hasCustomOrder && (
+                <button
+                  type="button"
+                  onClick={handleResetOrder}
+                  className="rounded-xl px-2.5 py-1.5 text-[10px] font-extrabold text-slate-500 hover:text-red-600 border border-slate-200 bg-white hover:bg-red-50/20 transition cursor-pointer flex items-center gap-1 shrink-0"
+                  title="Kembalikan urutan produk ke abjad bawaan"
+                >
+                  <Shuffle className="w-3.5 h-3.5 text-slate-400" /> Reset Urutan
+                </button>
+              )}
               {tableItems.some(r => (Number(r.quantity) || 0) > 0) && (
                 <button
                   type="button"
@@ -472,14 +602,17 @@ export default function Cashier() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200/50 bg-slate-50/30">
+                  <th className="py-3 px-3 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-center w-20">
+                    Urutan
+                  </th>
                   <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px]">
                     Nama Produk
                   </th>
                   <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-right">
                     Harga Satuan
                   </th>
-                  <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-center w-36">
-                    Kuantitas / Berat
+                  <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-center w-[120.698px]">
+                    Kuantitas
                   </th>
                   <th className="py-3 px-5 font-bold text-slate-400 uppercase tracking-wider text-[10px] text-right">
                     Subtotal
@@ -492,19 +625,41 @@ export default function Cashier() {
               <tbody className="divide-y divide-slate-100">
                 {visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-12 text-center text-slate-400 italic font-medium">
+                    <td colSpan={6} className="p-12 text-center text-slate-400 italic font-medium">
                       Tidak ada produk yang cocok dengan pencarian "{filterQuery}"
                     </td>
                   </tr>
                 ) : (
                   visibleRows.map((row, visibleIndex) => {
                     const isSelected = (Number(row.quantity) || 0) > 0;
+                    const isDragging = draggedIndex === row.originalIndex;
+                    const isOver = dragOverIndex === row.originalIndex && draggedIndex !== row.originalIndex;
                     return (
                       <tr
                         key={row.id}
-                        className={`transition duration-150 ${isSelected ? "bg-red-50/10 hover:bg-red-50/20" : "hover:bg-slate-50/30"
-                          }`}
+                        draggable={filterQuery === ""}
+                        onDragStart={(e) => handleDragStart(e, row.originalIndex)}
+                        onDragOver={(e) => handleDragOver(e, row.originalIndex)}
+                        onDrop={(e) => handleDrop(e, row.originalIndex)}
+                        onDragEnd={handleDragEnd}
+                        className={`transition-all duration-150 ${isDragging ? "opacity-30 bg-slate-100 border-2 border-dashed border-red-300" : ""
+                          } ${isOver ? "border-t-2 border-red-500 bg-red-50/10" : ""
+                          } ${isSelected ? "bg-red-50/10 hover:bg-red-50/20" : "hover:bg-slate-50/30"
+                          } ${filterQuery === "" ? "cursor-grab active:cursor-grabbing" : ""}`}
                       >
+                        {/* Reorder Buttons */}
+                        <td className="py-2 px-3 text-center">
+                          <div className="flex items-center justify-center">
+                            {filterQuery === "" ? (
+                              <div className="p-1 text-slate-300 hover:text-slate-500 transition cursor-grab" title="Geser (Drag & Drop) untuk mengubah urutan">
+                                <Move className="w-3.5 h-3.5" />
+                              </div>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
+                          </div>
+                        </td>
+
                         {/* Name */}
                         <td className="py-3 px-5 font-bold text-slate-800">
                           <div className="flex flex-col">
@@ -544,13 +699,13 @@ export default function Cashier() {
                                 handleRowChange(row.originalIndex, "price", e.target.value)
                               }
                               onKeyDown={(e) => handleKeyDown(e, visibleIndex, "price")}
-                              className="w-28 px-2 py-1.5 pl-7 text-right font-mono font-bold text-slate-700 bg-white border border-slate-200 rounded-lg focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all duration-200"
+                              className="w-28 px-2 py-1.5 pl-7 text-right font-mono font-bold text-slate-700 bg-white border border-slate-200 rounded-lg focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         </td>
 
                         {/* Quantity Input */}
-                        <td className="py-2 px-5 text-center">
+                        <td className="py-2 px-5 text-center w-[120px]">
                           <div className="flex items-center justify-center gap-1.5">
                             <input
                               data-row={visibleIndex}
@@ -563,7 +718,7 @@ export default function Cashier() {
                                 handleRowChange(row.originalIndex, "quantity", e.target.value)
                               }
                               onKeyDown={(e) => handleKeyDown(e, visibleIndex, "quantity")}
-                              className={`w-20 px-2 py-1.5 text-center font-mono font-extrabold rounded-lg border outline-none transition-all duration-200 ${isSelected
+                              className={`w-[60px] px-2 py-1.5 text-center font-mono font-extrabold rounded-lg border outline-none transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isSelected
                                   ? "text-red-700 border-red-300 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500"
                                   : "text-slate-800 border-slate-200 bg-white focus:border-red-500 focus:ring-1 focus:ring-red-500"
                                 }`}
@@ -641,20 +796,64 @@ export default function Cashier() {
             </div>
 
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <select
-                id="cashier-customer-select"
-                value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-3 text-xs font-bold text-slate-900 focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none transition-all duration-200"
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+              <input
+                id="cashier-customer-search-input"
+                type="text"
+                value={customerSearchQuery}
+                onChange={(e) => {
+                  setCustomerSearchQuery(e.target.value);
+                  setIsCustDropdownOpen(true);
+                }}
+                onFocus={() => setIsCustDropdownOpen(true)}
+                onBlur={handleCustBlur}
+                placeholder="Cari nama pelanggan..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-9 pr-8 text-xs font-bold text-slate-900 focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none transition-all duration-200"
+              />
+              <button
+                type="button"
+                onClick={() => setIsCustDropdownOpen(!isCustDropdownOpen)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
               >
-                {customers.map((cust) => (
-                  <option key={cust.id} value={cust.id}>
-                    {cust.name}{" "}
-                    {cust.phone && cust.phone !== "-" ? `(${cust.phone})` : ""}
-                  </option>
-                ))}
-              </select>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              {isCustDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg z-50">
+                  {filteredCustomersForSelect.length > 0 ? (
+                    filteredCustomersForSelect.map((cust) => {
+                      const isSelected = cust.id === selectedCustomerId;
+                      return (
+                        <button
+                          key={cust.id}
+                          type="button"
+                          onMouseDown={() => {
+                            setSelectedCustomerId(cust.id);
+                            setCustomerSearchQuery(cust.name);
+                            setIsCustDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors flex items-center justify-between ${isSelected
+                              ? "bg-red-50 text-red-600 font-extrabold"
+                              : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                            }`}
+                        >
+                          <span>
+                            {cust.name}{" "}
+                            {cust.phone && cust.phone !== "-" ? `(${cust.phone})` : ""}
+                          </span>
+                          {isSelected && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-red-600 shrink-0 ml-2" />
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="px-4 py-2 text-xs text-slate-400 font-bold">
+                      Tidak ada pelanggan cocok
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

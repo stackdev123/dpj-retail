@@ -425,7 +425,7 @@ export default function ReceiptModal({
     txt += `              CV DPJ BERKAH UNGGAS\n`;
     txt += `  Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan\n`;
     txt += `           Kec. Bojong Kab. Purwakarta\n`;
-    txt += `           Telp/Hp. +62 877-6908-0999\n`;
+    txt += `           Telp/Hp. +62 818-0734-9347\n`;
     txt += `================================================\n`;
     if (isDuplicate) {
       txt += `*** DUPLIKAT ***\n`;
@@ -433,11 +433,23 @@ export default function ReceiptModal({
     txt += `No. Nota  : ${transaction.invoiceNumber}\n`;
     txt += `Tanggal   : ${formatDate(transaction.date)}\n`;
     txt += `Pelanggan : ${transaction.customerName}\n`;
+    if (transaction.notes && transaction.notes.trim()) {
+      txt += `Catatan   : ${transaction.notes.trim()}\n`;
+    }
     txt += `================================================\n`;
 
     transaction.items.forEach((item, index) => {
       const line1 = `${index + 1}. ${item.name}`;
-      const qtyStr = `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`;
+      let qtyStr = "";
+      if (transaction.usePenerimaan) {
+        const qtyTerima =
+          item.receivedQuantity !== undefined && item.receivedQuantity !== null
+            ? item.receivedQuantity
+            : item.quantity;
+        qtyStr = `Trm: ${qtyTerima} ${item.unit} x ${formatRupiah(item.price)} (Krm: ${item.quantity})`;
+      } else {
+        qtyStr = `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`;
+      }
       const subTotalStr = formatRupiah(item.subtotal);
 
       txt += `${line1}\n`;
@@ -491,6 +503,7 @@ export default function ReceiptModal({
     if (isDuplicate) pageHeight += 12;
     if (previousDebt > 0) pageHeight += 5;
     if (totalCustomerDebt > 0) pageHeight += 5;
+    if (transaction.notes && transaction.notes.trim()) pageHeight += 5;
 
     const doc = new jsPDF({
       orientation: "portrait",
@@ -528,7 +541,7 @@ export default function ReceiptModal({
     y += 4;
     doc.text("Kec. Bojong Kab. Purwakarta", 40, y, { align: "center" });
     y += 4;
-    doc.text("Telp/Hp. +62 877-6908-0999", 40, y, { align: "center" });
+    doc.text("Telp/Hp. +62 818-0734-9347", 40, y, { align: "center" });
     y += 5;
 
     // Dashed divider
@@ -551,7 +564,14 @@ export default function ReceiptModal({
 
     doc.text("Pelanggan:", 6, y);
     doc.text(transaction.customerName, 74, y, { align: "right" });
-    y += 5;
+    y += 4.5;
+
+    if (transaction.notes && transaction.notes.trim()) {
+      doc.text("Catatan  :", 6, y);
+      doc.text(transaction.notes.trim(), 74, y, { align: "right" });
+      y += 4.5;
+    }
+    y += 0.5;
 
     // Dashed divider
     doc.text("------------------------------------------------", 40, y, { align: "center" });
@@ -578,11 +598,20 @@ export default function ReceiptModal({
 
       // Item Qty x Price
       doc.setFont("Courier", "normal");
-      doc.text(
-        `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
-        8,
-        y
-      );
+      if (transaction.usePenerimaan) {
+        const qtyTerima =
+          item.receivedQuantity !== undefined && item.receivedQuantity !== null
+            ? item.receivedQuantity
+            : item.quantity;
+        let textLine = `Trm: ${qtyTerima} ${item.unit} x ${formatRupiah(item.price)} (Krm: ${item.quantity})`;
+        doc.text(textLine, 8, y);
+      } else {
+        doc.text(
+          `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
+          8,
+          y
+        );
+      }
       y += 5;
     });
 
@@ -732,7 +761,7 @@ export default function ReceiptModal({
                   Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan
                   <br /> Kec. Bojong Kab. Purwakarta
                   <br />
-                  Telp/Hp. +62 877-6908-0999
+                  Telp/Hp. +62 818-0734-9347
                 </p>
                 <div className="border-t border-dashed border-slate-300 my-3"></div>
               </div>
@@ -757,6 +786,14 @@ export default function ReceiptModal({
                     {transaction.customerName}
                   </span>
                 </div>
+                {transaction.notes && transaction.notes.trim() && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Catatan:</span>
+                    <span className="text-slate-900 break-words text-right max-w-[150px]">
+                      {transaction.notes}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-dashed border-slate-300 my-3"></div>
@@ -780,8 +817,34 @@ export default function ReceiptModal({
                         <div className="text-slate-900 font-black">
                           {item.name}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-bold mt-0.5">
-                          {item.quantity} {item.unit} x {formatRupiah(item.price)}
+                        <div className="text-[10px] mt-0.5 font-bold">
+                          {transaction.usePenerimaan ? (
+                            (() => {
+                              const qtyTerima =
+                                item.receivedQuantity !== undefined &&
+                                  item.receivedQuantity !== null
+                                  ? item.receivedQuantity
+                                  : item.quantity;
+                              const susut = Math.max(0, item.quantity - qtyTerima);
+                              return (
+                                <div className="text-slate-600">
+                                  <span className="text-emerald-700 font-black">
+                                    Trm: {qtyTerima} {item.unit}
+                                  </span>{" "}
+                                  <span className="text-slate-400 font-normal">
+                                    x {formatRupiah(item.price)}
+                                  </span>{" "}
+                                  <span className="text-slate-400 font-normal">
+                                    (Krm: {item.quantity})
+                                  </span>
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <span className="text-slate-400">
+                              {item.quantity} {item.unit} x {formatRupiah(item.price)}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-2 text-right text-slate-900">
