@@ -8,6 +8,8 @@ import {
   ActivityLog,
   AppUser,
   PaymentMethod,
+  StockIn,
+  StockOpname,
 } from "../types";
 import { supabase } from "./supabase";
 
@@ -1500,5 +1502,197 @@ export const db = {
     });
 
     return onlineUsers;
+  },
+
+  // --- STOCK API ---
+  async getStockIns(): Promise<StockIn[]> {
+    const cached = getCached<StockIn[]>("stock_ins");
+    if (cached) return cached;
+
+    // Try fetching from Supabase
+    try {
+      const { data, error } = await supabase
+        .from("stock_ins")
+        .select("*")
+        .order("date", { ascending: false });
+
+      if (!error && data) {
+        const mapped: StockIn[] = data.map((d: any) => ({
+          id: d.id,
+          date: d.date,
+          itemId: d.item_id,
+          itemName: d.item_name,
+          quantity: Number(d.quantity),
+          pricePerItem: d.price_per_item !== null && d.price_per_item !== undefined ? Number(d.price_per_item) : undefined,
+          supplier: d.supplier || undefined,
+          notes: d.notes || undefined,
+        }));
+        // Update local storage backup
+        localStorage.setItem("dpj_stock_ins", JSON.stringify(mapped));
+        setCached("stock_ins", mapped);
+        return mapped;
+      }
+    } catch (e) {
+      console.warn("Supabase stock_ins table not yet available, using LocalStorage fallback.");
+    }
+
+    // Fallback to LocalStorage
+    const localStockInStr = localStorage.getItem("dpj_stock_ins");
+    let stockIns: StockIn[] = [];
+    if (localStockInStr) {
+      try {
+        stockIns = JSON.parse(localStockInStr);
+      } catch (e) {
+        stockIns = [];
+      }
+    }
+    setCached("stock_ins", stockIns);
+    return stockIns;
+  },
+
+  async saveStockIn(stockIn: StockIn): Promise<void> {
+    const stockIns = await this.getStockIns();
+    const isNew = !stockIns.some((s) => s.id === stockIn.id);
+
+    // Save to local storage first (always consistent)
+    let updated: StockIn[] = [];
+    if (isNew) {
+      updated = [...stockIns, stockIn];
+      await this.addActivityLog(
+        "CREATE",
+        "Stok",
+        `Stok Masuk Baru: ${stockIn.itemName} (${stockIn.quantity} unit) oleh Supplier ${stockIn.supplier || '-'}`
+      );
+    } else {
+      updated = stockIns.map((s) => (s.id === stockIn.id ? stockIn : s));
+      await this.addActivityLog(
+        "EDIT",
+        "Stok",
+        `Mengubah Transaksi Stok Masuk: ${stockIn.itemName} menjadi ${stockIn.quantity} unit`
+      );
+    }
+    localStorage.setItem("dpj_stock_ins", JSON.stringify(updated));
+
+    // Try saving to Supabase
+    try {
+      const payload = {
+        id: stockIn.id,
+        date: stockIn.date,
+        item_id: stockIn.itemId,
+        item_name: stockIn.itemName,
+        quantity: stockIn.quantity,
+        price_per_item: stockIn.pricePerItem || null,
+        supplier: stockIn.supplier || null,
+        notes: stockIn.notes || null,
+      };
+
+      await supabase.from("stock_ins").upsert(payload, { onConflict: "id" });
+    } catch (e) {
+      console.warn("Could not save stock_in to Supabase:", e);
+    }
+
+    invalidateCache(["stock_ins"]);
+  },
+
+  async deleteStockIn(id: string): Promise<void> {
+    const stockIns = await this.getStockIns();
+    const found = stockIns.find((s) => s.id === id);
+    if (!found) return;
+
+    // Delete from local storage
+    const updated = stockIns.filter((s) => s.id !== id);
+    localStorage.setItem("dpj_stock_ins", JSON.stringify(updated));
+
+    await this.addActivityLog(
+      "DELETE",
+      "Stok",
+      `Menghapus Transaksi Stok Masuk: ${found.itemName} (${found.quantity} unit)`
+    );
+
+    // Try deleting from Supabase
+    try {
+      await supabase.from("stock_ins").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Could not delete stock_in from Supabase:", e);
+    }
+
+    invalidateCache(["stock_ins"]);
+  },
+
+  async getStockOpnames(): Promise<StockOpname[]> {
+    const cached = getCached<StockOpname[]>("stock_opnames");
+    if (cached) return cached;
+
+    // Try fetching from Supabase
+    try {
+      const { data, error } = await supabase
+        .from("stock_opnames")
+        .select("*")
+        .order("date", { ascending: false });
+
+      if (!error && data) {
+        const mapped: StockOpname[] = data.map((d: any) => ({
+          id: d.id,
+          date: d.date,
+          itemId: d.item_id,
+          itemName: d.item_name,
+          actualQuantity: Number(d.actual_quantity),
+          previousQuantity: Number(d.previous_quantity),
+          notes: d.notes || undefined,
+        }));
+        // Update local storage backup
+        localStorage.setItem("dpj_stock_opnames", JSON.stringify(mapped));
+        setCached("stock_opnames", mapped);
+        return mapped;
+      }
+    } catch (e) {
+      console.warn("Supabase stock_opnames table not yet available, using LocalStorage fallback.");
+    }
+
+    // Fallback to LocalStorage
+    const localOpnameStr = localStorage.getItem("dpj_stock_opnames");
+    let opnames: StockOpname[] = [];
+    if (localOpnameStr) {
+      try {
+        opnames = JSON.parse(localOpnameStr);
+      } catch (e) {
+        opnames = [];
+      }
+    }
+    setCached("stock_opnames", opnames);
+    return opnames;
+  },
+
+  async saveStockOpname(opname: StockOpname): Promise<void> {
+    const opnames = await this.getStockOpnames();
+    const updated = [...opnames, opname];
+
+    // Save to local storage first (always consistent)
+    localStorage.setItem("dpj_stock_opnames", JSON.stringify(updated));
+
+    await this.addActivityLog(
+      "CREATE",
+      "Stok",
+      `Opname Stok: ${opname.itemName} disesuaikan ke ${opname.actualQuantity} unit (Sebelumnya: ${opname.previousQuantity} unit)`
+    );
+
+    // Try saving to Supabase
+    try {
+      const payload = {
+        id: opname.id,
+        date: opname.date,
+        item_id: opname.itemId,
+        item_name: opname.itemName,
+        actual_quantity: opname.actualQuantity,
+        previous_quantity: opname.previousQuantity,
+        notes: opname.notes || null,
+      };
+
+      await supabase.from("stock_opnames").upsert(payload, { onConflict: "id" });
+    } catch (e) {
+      console.warn("Could not save stock_opname to Supabase:", e);
+    }
+
+    invalidateCache(["stock_opnames"]);
   },
 };

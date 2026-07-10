@@ -8,12 +8,13 @@ import ActivityLogs from './components/ActivityLogs';
 import UserManager from './components/UserManager';
 import Login from './components/Login';
 import PrinterSettings from './components/PrinterSettings';
+import StockManager from './components/StockManager';
 import { AppUser } from './types';
 import { db } from './utils/db';
 import { autoConnectPrinter } from './utils/printer';
-import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw, Crown, ChevronDown, Settings } from 'lucide-react';
+import { Store, BookOpen, BarChart3, Database, Menu, X, Landmark, ChevronLeft, ChevronRight, LayoutDashboard, History, Users, LogOut, Shield, UserCheck, RefreshCw, Crown, ChevronDown, Settings, Package } from 'lucide-react';
 
-type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'database' | 'activity_logs' | 'users_management' | 'settings';
+type MenuItem = 'dashboard' | 'cashier' | 'ledger' | 'reports' | 'stock' | 'database' | 'activity_logs' | 'users_management' | 'settings';
 
 function OnlineUsersDropdown({ onlineUsers }: { onlineUsers: any[] }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -261,6 +262,7 @@ export default function App() {
     { id: 'cashier', label: 'Kasir Kas', icon: Store },
     { id: 'ledger', label: 'Buku Utang / Ledger', icon: BookOpen },
     { id: 'reports', label: 'Laporan Penjualan', icon: BarChart3 },
+    { id: 'stock', label: 'Stok Frozen', icon: Package },
     { id: 'database', label: 'Database Master', icon: Database },
     { id: 'activity_logs', label: 'Log Aktivitas', icon: History },
     { id: 'users_management', label: 'Kelola Pengguna', icon: Users },
@@ -284,6 +286,8 @@ export default function App() {
         return <DebtLedger />;
       case 'reports':
         return <Reports />;
+      case 'stock':
+        return <StockManager />;
       case 'database':
         return <DatabaseManager />;
       case 'activity_logs':
@@ -507,10 +511,11 @@ export default function App() {
                 : activeMenu === 'cashier' ? 'Kasir Kas Retail'
                   : activeMenu === 'ledger' ? 'Buku Piutang / Ledger'
                     : activeMenu === 'reports' ? 'Laporan Penjualan'
-                      : activeMenu === 'database' ? 'Database Master'
-                        : activeMenu === 'activity_logs' ? 'Log Aktivitas Sistem'
-                          : activeMenu === 'settings' ? 'Pengaturan Printer Thermal'
-                            : 'Kelola Pengguna Sistem'}
+                      : activeMenu === 'stock' ? 'Stok Frozen'
+                        : activeMenu === 'database' ? 'Database Master'
+                          : activeMenu === 'activity_logs' ? 'Log Aktivitas Sistem'
+                            : activeMenu === 'settings' ? 'Pengaturan Printer Thermal'
+                              : 'Kelola Pengguna Sistem'}
             </h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1.5">
               Sistem Informasi Retail CV DPJ Berkah

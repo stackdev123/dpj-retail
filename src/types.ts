@@ -87,3 +87,24 @@ export interface AppUser {
   createdAt: string;
 }
 
+export interface StockIn {
+  id: string;
+  date: string; // ISO string
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  pricePerItem?: number; // optional, can be empty
+  supplier?: string; // optional, can be empty
+  notes?: string;
+}
+
+export interface StockOpname {
+  id: string;
+  date: string; // ISO string
+  itemId: string;
+  itemName: string;
+  actualQuantity: number;
+  previousQuantity: number;
+  notes?: string;
+}
+
