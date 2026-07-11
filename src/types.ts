@@ -78,6 +78,28 @@ export interface ActivityLog {
   timestamp: string; // ISO string
 }
 
+export interface StockInItem {
+  itemId: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  costPrice?: number; // Optional: purchase/cost price per unit
+}
+
+export interface StockIn {
+  quantity: any;
+  itemId: any;
+  pricePerItem: null;
+  itemName: any;
+  id: string;
+  referenceNumber: string; // e.g. "STKIN-260711-001"
+  supplier?: string;       // Supplier name (optional)
+  date: string;            // ISO string
+  items: StockInItem[];
+  notes?: string;
+  createdAt: string;       // ISO string
+}
+
 export interface AppUser {
   id: string;
   username: string;

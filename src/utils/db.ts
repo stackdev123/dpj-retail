@@ -8,6 +8,8 @@ import {
   ActivityLog,
   AppUser,
   PaymentMethod,
+  StockIn,
+  StockOpname,
 } from "../types";
 import { supabase } from "./supabase";
 
@@ -248,9 +250,26 @@ export const db = {
       notes = `[MIX_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
     }
 
+    const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+
+    let customerId: string | null = transaction.customerId;
+    if (!customerId || !isValidUUID(customerId)) {
+      const { data: generalCust } = await supabase
+        .from("customers")
+        .select("id")
+        .ilike("name", "Pelanggan Umum")
+        .limit(1);
+
+      if (generalCust && generalCust.length > 0) {
+        customerId = generalCust[0].id;
+      } else {
+        customerId = null;
+      }
+    }
+
     const txPayload = {
       invoice_number: transaction.invoiceNumber,
-      customer_id: transaction.customerId,
+      customer_id: customerId,
       customer_name: transaction.customerName,
       total_amount: transaction.totalAmount,
       payment_method: dbPaymentMethod,
@@ -271,13 +290,13 @@ export const db = {
 
     if (txError || !txData) {
       console.warn("Error saving transaction:", txError);
-      return;
+      throw new Error(txError?.message || "Gagal menyimpan transaksi ke database.");
     }
 
     // Insert transaction items
     const itemsPayload = transaction.items.map((item) => ({
       transaction_id: txData.id,
-      item_id: item.itemId,
+      item_id: (item.itemId && isValidUUID(item.itemId)) ? item.itemId : null,
       name: item.name,
       price: item.price,
       quantity: item.quantity,
@@ -286,18 +305,24 @@ export const db = {
       received_quantity: item.receivedQuantity !== undefined ? item.receivedQuantity : null,
     }));
 
-    await supabase.from("transaction_items").insert(itemsPayload);
+    const { error: itemsError } = await supabase.from("transaction_items").insert(itemsPayload);
+    if (itemsError) {
+      console.warn("Error saving transaction items:", itemsError);
+      throw new Error(itemsError.message || "Gagal menyimpan detail item transaksi ke database.");
+    }
 
     // Update price memories
     for (const item of transaction.items) {
-      const pmPayload = {
-        item_id: item.itemId,
-        last_price: item.price,
-      };
-      // Upsert price memory
-      await supabase
-        .from("price_memory")
-        .upsert(pmPayload, { onConflict: "item_id" });
+      if (item.itemId && isValidUUID(item.itemId)) {
+        const pmPayload = {
+          item_id: item.itemId,
+          last_price: item.price,
+        };
+        // Upsert price memory
+        await supabase
+          .from("price_memory")
+          .upsert(pmPayload, { onConflict: "item_id" });
+      }
     }
 
     // Log transaction creation
@@ -444,6 +469,145 @@ export const db = {
       "CREATE",
       "Pelanggan",
       `Menerima Pembayaran Piutang: ${customerName} sebesar Rp ${totalAmountPaid.toLocaleString("id-ID")} via ${paymentMethod === "cash" ? "Cash" : "Transfer"}`
+    );
+
+    invalidateCache(["transactions", "debtPayments", "customerDebtSummaries", "activityLogs"]);
+  },
+
+  async deleteDebtPayment(paymentId: string): Promise<void> {
+    const { data: payment, error: getError } = await supabase
+      .from("debt_payments")
+      .select("*")
+      .eq("id", paymentId)
+      .single();
+
+    if (getError || !payment) {
+      console.warn("Payment not found for delete:", getError);
+      throw new Error("Payment not found");
+    }
+
+    const txId = payment.transaction_id;
+    const customerId = payment.customer_id;
+    const amountPaid = Number(payment.amount_paid);
+
+    const { error: delError } = await supabase
+      .from("debt_payments")
+      .delete()
+      .eq("id", paymentId);
+
+    if (delError) {
+      console.warn("Error deleting payment:", delError);
+      throw delError;
+    }
+
+    if (txId) {
+      const { data: transaction } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("id", txId)
+        .single();
+
+      if (transaction) {
+        const { data: otherPayments } = await supabase
+          .from("debt_payments")
+          .select("amount_paid")
+          .eq("transaction_id", txId);
+
+        const totalPayments = otherPayments ? otherPayments.reduce((sum, p) => sum + Number(p.amount_paid), 0) : 0;
+        const remainingDebt = Math.max(0, Number(transaction.total_amount) - Number(transaction.amount_paid) - totalPayments);
+
+        await supabase
+          .from("transactions")
+          .update({ remaining_debt: remainingDebt })
+          .eq("id", txId);
+      }
+    }
+
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("id", customerId)
+      .single();
+    const customerName = customer ? customer.name : "Pelanggan";
+
+    await this.addActivityLog(
+      "DELETE",
+      "Pelanggan",
+      `Menghapus Pembayaran Piutang: ${customerName} sebesar Rp ${amountPaid.toLocaleString("id-ID")}`
+    );
+
+    invalidateCache(["transactions", "debtPayments", "customerDebtSummaries", "activityLogs"]);
+  },
+
+  async editDebtPayment(
+    paymentId: string,
+    updatedAmount: number,
+    paymentMethod: "cash" | "transfer",
+    notes: string,
+  ): Promise<void> {
+    const { data: payment, error: getError } = await supabase
+      .from("debt_payments")
+      .select("*")
+      .eq("id", paymentId)
+      .single();
+
+    if (getError || !payment) {
+      console.warn("Payment not found for edit:", getError);
+      throw new Error("Payment not found");
+    }
+
+    const txId = payment.transaction_id;
+    const customerId = payment.customer_id;
+    const oldAmount = Number(payment.amount_paid);
+
+    const { error: updError } = await supabase
+      .from("debt_payments")
+      .update({
+        amount_paid: updatedAmount,
+        payment_method: paymentMethod,
+        notes: notes,
+      })
+      .eq("id", paymentId);
+
+    if (updError) {
+      console.warn("Error updating payment:", updError);
+      throw updError;
+    }
+
+    if (txId) {
+      const { data: transaction } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("id", txId)
+        .single();
+
+      if (transaction) {
+        const { data: otherPayments } = await supabase
+          .from("debt_payments")
+          .select("amount_paid")
+          .eq("transaction_id", txId);
+
+        const totalPayments = otherPayments ? otherPayments.reduce((sum, p) => sum + Number(p.amount_paid), 0) : 0;
+        const remainingDebt = Math.max(0, Number(transaction.total_amount) - Number(transaction.amount_paid) - totalPayments);
+
+        await supabase
+          .from("transactions")
+          .update({ remaining_debt: remainingDebt })
+          .eq("id", txId);
+      }
+    }
+
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("id", customerId)
+      .single();
+    const customerName = customer ? customer.name : "Pelanggan";
+
+    await this.addActivityLog(
+      "EDIT",
+      "Pelanggan",
+      `Mengubah Pembayaran Piutang: ${customerName} dari Rp ${oldAmount.toLocaleString("id-ID")} menjadi Rp ${updatedAmount.toLocaleString("id-ID")}`
     );
 
     invalidateCache(["transactions", "debtPayments", "customerDebtSummaries", "activityLogs"]);
@@ -836,6 +1000,7 @@ export const db = {
       const { data, error } = await supabase
         .from("activity_logs")
         .select("*")
+        .neq("action", "HEARTBEAT")
         .order("created_at", { ascending: false });
       if (!error && data) {
         const mapped = data.map((log) => ({
@@ -855,9 +1020,10 @@ export const db = {
     const localLogsStr = localStorage.getItem("dpj_activity_logs");
     if (localLogsStr) {
       try {
-        const parsed = JSON.parse(localLogsStr);
-        setCached("activityLogs", parsed);
-        return parsed;
+        const parsed = JSON.parse(localLogsStr) as ActivityLog[];
+        const filtered = parsed.filter(log => log.action !== 'HEARTBEAT');
+        setCached("activityLogs", filtered);
+        return filtered;
       } catch (e) {
         return [];
       }
@@ -978,8 +1144,25 @@ export const db = {
       notes = `[MIX_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
     }
 
+    const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+
+    let customerId: string | null = transaction.customerId;
+    if (!customerId || !isValidUUID(customerId)) {
+      const { data: generalCust } = await supabase
+        .from("customers")
+        .select("id")
+        .ilike("name", "Pelanggan Umum")
+        .limit(1);
+
+      if (generalCust && generalCust.length > 0) {
+        customerId = generalCust[0].id;
+      } else {
+        customerId = null;
+      }
+    }
+
     const txPayload = {
-      customer_id: transaction.customerId,
+      customer_id: customerId,
       customer_name: transaction.customerName,
       total_amount: transaction.totalAmount,
       payment_method: dbPaymentMethod,
@@ -1012,7 +1195,7 @@ export const db = {
 
     const itemsPayload = transaction.items.map((item) => ({
       transaction_id: transaction.id,
-      item_id: item.itemId,
+      item_id: (item.itemId && isValidUUID(item.itemId)) ? item.itemId : null,
       name: item.name,
       price: item.price,
       quantity: item.quantity,
@@ -1032,13 +1215,15 @@ export const db = {
 
     // 6. Update price memories
     for (const item of transaction.items) {
-      const pmPayload = {
-        item_id: item.itemId,
-        last_price: item.price,
-      };
-      await supabase
-        .from("price_memory")
-        .upsert(pmPayload, { onConflict: "item_id" });
+      if (item.itemId && isValidUUID(item.itemId)) {
+        const pmPayload = {
+          item_id: item.itemId,
+          last_price: item.price,
+        };
+        await supabase
+          .from("price_memory")
+          .upsert(pmPayload, { onConflict: "item_id" });
+      }
     }
 
     // 7. Log activity
@@ -1232,10 +1417,50 @@ export const db = {
 
   // --- ONLINE STATUS API ---
   async updateOnlineStatus(userId: string, isLoggingOut: boolean = false): Promise<void> {
-    const users = await this.getUsers();
-    const user = users.find((u) => u.id === userId);
+    let user: any = null;
+    try {
+      const savedUser = localStorage.getItem("dpj_current_user");
+      if (savedUser) {
+        user = JSON.parse(savedUser);
+      }
+    } catch (e) { }
+
+    if (!user || user.id !== userId) {
+      try {
+        const users = await this.getUsers();
+        user = users.find((u) => u.id === userId);
+      } catch (e) { }
+    }
+
     if (!user) return;
 
+    const now = new Date();
+    const hbId = `hb-${userId}`;
+
+    // 1. Try to update online status on Supabase using activity_logs table (upsert/delete)
+    try {
+      if (isLoggingOut) {
+        await supabase.from("activity_logs").delete().eq("id", hbId);
+      } else {
+        await supabase.from("activity_logs").upsert({
+          id: hbId,
+          action: "HEARTBEAT",
+          module: "Sistem",
+          description: JSON.stringify({
+            id: user.id,
+            username: user.username,
+            fullname: user.fullname,
+            role: user.role,
+            lastActive: now.toISOString(),
+          }),
+          created_at: now.toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to update online status on Supabase, using local storage fallback:", e);
+    }
+
+    // 2. Also update local storage for dual-sync reliability and fallback
     let onlineUsers: any[] = [];
     try {
       const stored = localStorage.getItem("dpj_online_users");
@@ -1246,12 +1471,10 @@ export const db = {
       onlineUsers = [];
     }
 
-    const now = new Date();
-    // Filter out old inactive heartbeats (older than 3 minutes)
     onlineUsers = onlineUsers.filter((u) => {
       const lastActive = new Date(u.lastActive);
       const diffMs = now.getTime() - lastActive.getTime();
-      return diffMs < 3 * 60 * 1000 && u.id !== userId;
+      return diffMs < 5 * 60 * 1000 && u.id !== userId;
     });
 
     if (!isLoggingOut) {
@@ -1268,6 +1491,42 @@ export const db = {
   },
 
   async getOnlineUsers(): Promise<any[]> {
+    const now = new Date();
+
+    // 1. Try to fetch active heartbeat rows from Supabase
+    try {
+      const { data, error } = await supabase
+        .from("activity_logs")
+        .select("*")
+        .eq("action", "HEARTBEAT");
+
+      if (!error && data) {
+        const onlineUsers: any[] = [];
+        data.forEach((log) => {
+          try {
+            const parsed = JSON.parse(log.description);
+            const lastActive = new Date(log.created_at || parsed.lastActive);
+            const diffMs = now.getTime() - lastActive.getTime();
+            // Active if updated in the last 5 minutes (handles browser tab sleep and background limits)
+            if (diffMs < 5 * 60 * 1000) {
+              onlineUsers.push({
+                ...parsed,
+                lastActive: lastActive.toISOString(),
+              });
+            }
+          } catch (e) {
+            // Ignore bad parses
+          }
+        });
+
+        localStorage.setItem("dpj_online_users", JSON.stringify(onlineUsers));
+        return onlineUsers;
+      }
+    } catch (e) {
+      console.warn("Failed to fetch online users from Supabase, falling back to local storage:", e);
+    }
+
+    // 2. Fallback to local storage
     let onlineUsers: any[] = [];
     try {
       const stored = localStorage.getItem("dpj_online_users");
@@ -1278,14 +1537,204 @@ export const db = {
       onlineUsers = [];
     }
 
-    const now = new Date();
-    // Filter out inactive entries (older than 2 minutes)
     onlineUsers = onlineUsers.filter((u) => {
       const lastActive = new Date(u.lastActive);
       const diffMs = now.getTime() - lastActive.getTime();
-      return diffMs < 2 * 60 * 1000;
+      return diffMs < 5 * 60 * 1000;
     });
 
     return onlineUsers;
+  },
+
+  // --- STOCK API ---
+  async getStockIns(): Promise<StockIn[]> {
+    const cached = getCached<StockIn[]>("stock_ins");
+    if (cached) return cached;
+
+    // Try fetching from Supabase
+    try {
+      const { data, error } = await supabase
+        .from("stock_ins")
+        .select("*")
+        .order("date", { ascending: false });
+
+      if (!error && data) {
+        const mapped: StockIn[] = data.map((d: any) => ({
+          id: d.id,
+          date: d.date,
+          itemId: d.item_id,
+          itemName: d.item_name,
+          quantity: Number(d.quantity),
+          pricePerItem: d.price_per_item !== null && d.price_per_item !== undefined ? Number(d.price_per_item) : undefined,
+          supplier: d.supplier || undefined,
+          notes: d.notes || undefined,
+        }));
+        // Update local storage backup
+        localStorage.setItem("dpj_stock_ins", JSON.stringify(mapped));
+        setCached("stock_ins", mapped);
+        return mapped;
+      }
+    } catch (e) {
+      console.warn("Supabase stock_ins table not yet available, using LocalStorage fallback.");
+    }
+
+    // Fallback to LocalStorage
+    const localStockInStr = localStorage.getItem("dpj_stock_ins");
+    let stockIns: StockIn[] = [];
+    if (localStockInStr) {
+      try {
+        stockIns = JSON.parse(localStockInStr);
+      } catch (e) {
+        stockIns = [];
+      }
+    }
+    setCached("stock_ins", stockIns);
+    return stockIns;
+  },
+
+  async saveStockIn(stockIn: StockIn): Promise<void> {
+    const stockIns = await this.getStockIns();
+    const isNew = !stockIns.some((s) => s.id === stockIn.id);
+
+    // Save to local storage first (always consistent)
+    let updated: StockIn[] = [];
+    if (isNew) {
+      updated = [...stockIns, stockIn];
+      await this.addActivityLog(
+        "CREATE",
+        "Stok",
+        `Stok Masuk Baru: ${stockIn.itemName} (${stockIn.quantity} unit) oleh Supplier ${stockIn.supplier || '-'}`
+      );
+    } else {
+      updated = stockIns.map((s) => (s.id === stockIn.id ? stockIn : s));
+      await this.addActivityLog(
+        "EDIT",
+        "Stok",
+        `Mengubah Transaksi Stok Masuk: ${stockIn.itemName} menjadi ${stockIn.quantity} unit`
+      );
+    }
+    localStorage.setItem("dpj_stock_ins", JSON.stringify(updated));
+
+    // Try saving to Supabase
+    try {
+      const payload = {
+        id: stockIn.id,
+        date: stockIn.date,
+        item_id: stockIn.itemId,
+        item_name: stockIn.itemName,
+        quantity: stockIn.quantity,
+        price_per_item: stockIn.pricePerItem || null,
+        supplier: stockIn.supplier || null,
+        notes: stockIn.notes || null,
+      };
+
+      await supabase.from("stock_ins").upsert(payload, { onConflict: "id" });
+    } catch (e) {
+      console.warn("Could not save stock_in to Supabase:", e);
+    }
+
+    invalidateCache(["stock_ins"]);
+  },
+
+  async deleteStockIn(id: string): Promise<void> {
+    const stockIns = await this.getStockIns();
+    const found = stockIns.find((s) => s.id === id);
+    if (!found) return;
+
+    // Delete from local storage
+    const updated = stockIns.filter((s) => s.id !== id);
+    localStorage.setItem("dpj_stock_ins", JSON.stringify(updated));
+
+    await this.addActivityLog(
+      "DELETE",
+      "Stok",
+      `Menghapus Transaksi Stok Masuk: ${found.itemName} (${found.quantity} unit)`
+    );
+
+    // Try deleting from Supabase
+    try {
+      await supabase.from("stock_ins").delete().eq("id", id);
+    } catch (e) {
+      console.warn("Could not delete stock_in from Supabase:", e);
+    }
+
+    invalidateCache(["stock_ins"]);
+  },
+
+  async getStockOpnames(): Promise<StockOpname[]> {
+    const cached = getCached<StockOpname[]>("stock_opnames");
+    if (cached) return cached;
+
+    // Try fetching from Supabase
+    try {
+      const { data, error } = await supabase
+        .from("stock_opnames")
+        .select("*")
+        .order("date", { ascending: false });
+
+      if (!error && data) {
+        const mapped: StockOpname[] = data.map((d: any) => ({
+          id: d.id,
+          date: d.date,
+          itemId: d.item_id,
+          itemName: d.item_name,
+          actualQuantity: Number(d.actual_quantity),
+          previousQuantity: Number(d.previous_quantity),
+          notes: d.notes || undefined,
+        }));
+        // Update local storage backup
+        localStorage.setItem("dpj_stock_opnames", JSON.stringify(mapped));
+        setCached("stock_opnames", mapped);
+        return mapped;
+      }
+    } catch (e) {
+      console.warn("Supabase stock_opnames table not yet available, using LocalStorage fallback.");
+    }
+
+    // Fallback to LocalStorage
+    const localOpnameStr = localStorage.getItem("dpj_stock_opnames");
+    let opnames: StockOpname[] = [];
+    if (localOpnameStr) {
+      try {
+        opnames = JSON.parse(localOpnameStr);
+      } catch (e) {
+        opnames = [];
+      }
+    }
+    setCached("stock_opnames", opnames);
+    return opnames;
+  },
+
+  async saveStockOpname(opname: StockOpname): Promise<void> {
+    const opnames = await this.getStockOpnames();
+    const updated = [...opnames, opname];
+
+    // Save to local storage first (always consistent)
+    localStorage.setItem("dpj_stock_opnames", JSON.stringify(updated));
+
+    await this.addActivityLog(
+      "CREATE",
+      "Stok",
+      `Opname Stok: ${opname.itemName} disesuaikan ke ${opname.actualQuantity} unit (Sebelumnya: ${opname.previousQuantity} unit)`
+    );
+
+    // Try saving to Supabase
+    try {
+      const payload = {
+        id: opname.id,
+        date: opname.date,
+        item_id: opname.itemId,
+        item_name: opname.itemName,
+        actual_quantity: opname.actualQuantity,
+        previous_quantity: opname.previousQuantity,
+        notes: opname.notes || null,
+      };
+
+      await supabase.from("stock_opnames").upsert(payload, { onConflict: "id" });
+    } catch (e) {
+      console.warn("Could not save stock_opname to Supabase:", e);
+    }
+
+    invalidateCache(["stock_opnames"]);
   },
 };
