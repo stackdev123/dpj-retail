@@ -19,6 +19,8 @@ import {
   Edit,
   Trash2,
   ChevronDown,
+  Printer,
+  Scale,
 } from "lucide-react";
 
 export default function Reports() {
@@ -295,25 +297,42 @@ export default function Reports() {
       "No. Nota",
       "Tanggal",
       "Nama Pelanggan",
-      "Metode Pembayaran",
       "Total Belanja (Rp)",
-      "Kolektif Bayar (Rp)",
-      "Sisa Utang (Rp)",
+      "Tunai (Trf) (Rp)",
+      "Cash (Rp)",
+      "Utang (Rp)",
       "Jumlah Cetak",
       "Catatan",
     ];
 
-    const rows = filteredTransactions.map((tx) => [
-      tx.invoiceNumber,
-      formatDate(tx.date),
-      tx.customerName,
-      tx.paymentMethod.toUpperCase(),
-      tx.totalAmount.toString(),
-      tx.amountPaid.toString(),
-      tx.remainingDebt.toString(),
-      tx.printCount.toString(),
-      tx.notes || "",
-    ]);
+    const rows = filteredTransactions.map((tx) => {
+      let trfVal = 0;
+      let cashVal = 0;
+      let debtVal = tx.remainingDebt || 0;
+
+      if (tx.paymentMethod === "cash") {
+        cashVal = tx.amountPaid;
+      } else if (tx.paymentMethod === "transfer") {
+        trfVal = tx.amountPaid;
+      } else if (tx.paymentMethod === "mix") {
+        cashVal = tx.cashAmount || 0;
+        trfVal = tx.transferAmount || 0;
+      } else if (tx.paymentMethod === "debt") {
+        cashVal = tx.amountPaid || 0;
+      }
+
+      return [
+        tx.invoiceNumber,
+        formatDate(tx.date),
+        tx.customerName,
+        tx.totalAmount.toString(),
+        trfVal.toString(),
+        cashVal.toString(),
+        debtVal.toString(),
+        tx.printCount.toString(),
+        tx.notes || "",
+      ];
+    });
 
     downloadXLSX(
       headers,
@@ -412,8 +431,8 @@ export default function Reports() {
               setFilterQuery("");
             }}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "all"
-              ? "bg-red-600 text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
+                ? "bg-red-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
               }`}
           >
             <Layers className="w-3.5 h-3.5" /> Riwayat Transaksi All / Detail
@@ -425,8 +444,8 @@ export default function Reports() {
               setFilterQuery("");
             }}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "customer"
-              ? "bg-red-600 text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
+                ? "bg-red-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
               }`}
           >
             <Users className="w-3.5 h-3.5" /> Laporan per Pelanggan
@@ -438,8 +457,8 @@ export default function Reports() {
               setFilterQuery("");
             }}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider transition duration-150 cursor-pointer ${reportTab === "daily_items"
-              ? "bg-red-600 text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
+                ? "bg-red-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
               }`}
           >
             <BarChart3 className="w-3.5 h-3.5" /> Laporan Item Harian
@@ -676,14 +695,17 @@ export default function Reports() {
                     <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px]">
                       Detail Item
                     </th>
-                    <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-center">
-                      Metode
-                    </th>
                     <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
                       Total Belanja
                     </th>
-                    <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-right">
-                      Sisa Utang
+                    <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-right text-indigo-700">
+                      Tunai (Trf)
+                    </th>
+                    <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-right text-emerald-700">
+                      Cash
+                    </th>
+                    <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-right text-red-600">
+                      Utang
                     </th>
                     <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-center">
                       Cetak
@@ -694,160 +716,163 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTransactions.map((tx) => (
-                    <tr
-                      key={tx.id}
-                      className="hover:bg-slate-50/30 transition-all duration-150"
-                    >
-                      <td className="py-3.5 px-5 font-black text-slate-900 font-mono">
-                        {tx.invoiceNumber}
-                      </td>
-                      <td className="py-3.5 px-5 text-slate-500 whitespace-nowrap font-medium">
-                        {formatDate(tx.date, true)}
-                      </td>
-                      <td className="py-3.5 px-5 font-bold text-slate-800">
-                        {tx.customerName}
-                      </td>
-                      <td className="py-3.5 px-5 text-slate-600 font-semibold max-w-[280px]">
-                        {tx.usePenerimaan ? (
-                          <div className="space-y-1">
-                            {tx.items.map((item) => {
-                              const qtyTerima =
-                                item.receivedQuantity !== undefined &&
-                                  item.receivedQuantity !== null
-                                  ? item.receivedQuantity
-                                  : item.quantity;
-                              const susut = Math.max(0, item.quantity - qtyTerima);
-                              return (
-                                <div
-                                  key={item.itemId}
-                                  className="text-[10px] leading-tight border-b border-slate-100/50 pb-0.5 last:border-0"
-                                >
-                                  <div className="font-bold text-slate-800">
-                                    {item.name}
+                  {filteredTransactions.map((tx) => {
+                    let trfVal = 0;
+                    let cashVal = 0;
+                    let debtVal = tx.remainingDebt || 0;
+
+                    if (tx.paymentMethod === "cash") {
+                      cashVal = tx.amountPaid;
+                    } else if (tx.paymentMethod === "transfer") {
+                      trfVal = tx.amountPaid;
+                    } else if (tx.paymentMethod === "mix") {
+                      cashVal = tx.cashAmount || 0;
+                      trfVal = tx.transferAmount || 0;
+                    } else if (tx.paymentMethod === "debt") {
+                      cashVal = tx.amountPaid || 0;
+                    }
+
+                    return (
+                      <tr
+                        key={tx.id}
+                        className="hover:bg-slate-50/30 transition-all duration-150"
+                      >
+                        <td className="py-3.5 px-5 font-black text-slate-900 font-mono">
+                          {tx.invoiceNumber}
+                        </td>
+                        <td className="py-3.5 px-5 text-slate-500 whitespace-nowrap font-medium">
+                          {formatDate(tx.date, true)}
+                        </td>
+                        <td className="py-3.5 px-5 font-bold text-slate-800">
+                          {tx.customerName}
+                        </td>
+                        <td className="py-3.5 px-5 text-slate-600 font-semibold max-w-[280px]">
+                          {tx.usePenerimaan ? (
+                            <div className="space-y-1">
+                              {tx.items.map((item) => {
+                                const qtyTerima =
+                                  item.receivedQuantity !== undefined &&
+                                    item.receivedQuantity !== null
+                                    ? item.receivedQuantity
+                                    : item.quantity;
+                                const susut = Math.max(0, item.quantity - qtyTerima);
+                                return (
+                                  <div
+                                    key={item.itemId}
+                                    className="text-[10px] leading-tight border-b border-slate-100/50 pb-0.5 last:border-0"
+                                  >
+                                    <div className="font-bold text-slate-800">
+                                      {item.name}
+                                    </div>
+                                    <div className="text-[9px] text-slate-500 flex flex-wrap gap-x-1 font-mono">
+                                      <span>
+                                        Kirim: {item.quantity} {item.unit}
+                                      </span>
+                                      <span>|</span>
+                                      <span className="text-emerald-700 font-bold">
+                                        Terima: {qtyTerima} {item.unit}
+                                      </span>
+                                      {susut > 0 && (
+                                        <>
+                                          <span>|</span>
+                                          <span className="text-red-600 font-bold">
+                                            Susut: {susut.toFixed(2)} {item.unit}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="text-[9px] text-slate-500 flex flex-wrap gap-x-1 font-mono">
-                                    <span>
-                                      Kirim: {item.quantity} {item.unit}
-                                    </span>
-                                    <span>|</span>
-                                    <span className="text-emerald-700 font-bold">
-                                      Terima: {qtyTerima} {item.unit}
-                                    </span>
-                                    {susut > 0 && (
-                                      <>
-                                        <span>|</span>
-                                        <span className="text-red-600 font-bold">
-                                          Susut: {susut.toFixed(2)} {item.unit}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div
-                            className="truncate max-w-[200px]"
-                            title={tx.items
-                              .map(
-                                (item) =>
-                                  `${item.name} (${item.quantity}${item.unit})`,
-                              )
-                              .join(", ")}
-                          >
-                            {tx.items
-                              .map(
-                                (item) =>
-                                  `${item.name} (${item.quantity}${item.unit})`,
-                              )
-                              .join(", ")}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-5 text-center">
-                        <span
-                          className={`inline-flex rounded-lg px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide border ${tx.paymentMethod === "cash"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : tx.paymentMethod === "transfer"
-                              ? "bg-blue-50 text-blue-700 border-blue-200"
-                              : tx.paymentMethod === "mix"
-                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                : "bg-amber-50 text-amber-700 border-amber-200"
-                            }`}
-                        >
-                          {tx.paymentMethod === "debt"
-                            ? "Utang"
-                            : tx.paymentMethod === "mix"
-                              ? "Campuran (Mix)"
-                              : tx.paymentMethod}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-5 text-right font-bold text-slate-900 font-mono">
-                        {formatRupiah(tx.totalAmount)}
-                      </td>
-                      <td className="py-3.5 px-5 text-right font-bold text-red-600 font-mono">
-                        {tx.remainingDebt > 0
-                          ? formatRupiah(tx.remainingDebt)
-                          : "-"}
-                      </td>
-                      <td className="py-3.5 px-5 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${tx.printCount >= 1
-                            ? "bg-red-50 text-red-700 font-black"
-                            : "bg-slate-100 text-slate-500"
-                            }`}
-                          title={
-                            tx.printCount >= 1
-                              ? `Sudah dicetak ${tx.printCount} kali`
-                              : "Belum dicetak"
-                          }
-                        >
-                          {tx.printCount}x {tx.printCount >= 1 && "📋"}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-5 text-right whitespace-nowrap">
-                        <div className="flex justify-end gap-1.5 font-sans">
-                          <button
-                            id={`penerimaan-tx-btn-${tx.id}`}
-                            onClick={() => setPenerimaanTx(tx)}
-                            className={`inline-flex items-center gap-1 rounded-lg border font-bold text-[10px] py-1 px-2 shadow-sm transition cursor-pointer ${tx.usePenerimaan
-                              ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-black"
-                              : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div
+                              className="truncate max-w-[200px]"
+                              title={tx.items
+                                .map(
+                                  (item) =>
+                                    `${item.name} (${item.quantity}${item.unit})`,
+                                )
+                                .join(", ")}
+                            >
+                              {tx.items
+                                .map(
+                                  (item) =>
+                                    `${item.name} (${item.quantity}${item.unit})`,
+                                )
+                                .join(", ")}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-5 text-right font-bold text-slate-900 font-mono">
+                          {formatRupiah(tx.totalAmount)}
+                        </td>
+                        <td className="py-3.5 px-5 text-right font-bold text-indigo-600 font-mono">
+                          {trfVal > 0 ? formatRupiah(trfVal) : "-"}
+                        </td>
+                        <td className="py-3.5 px-5 text-right font-bold text-emerald-600 font-mono">
+                          {cashVal > 0 ? formatRupiah(cashVal) : "-"}
+                        </td>
+                        <td className="py-3.5 px-5 text-right font-bold text-red-600 font-mono">
+                          {debtVal > 0 ? formatRupiah(debtVal) : "-"}
+                        </td>
+                        <td className="py-3.5 px-5 text-center">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${tx.printCount >= 1
+                                ? "bg-red-50 text-red-700 font-black"
+                                : "bg-slate-100 text-slate-500"
                               }`}
-                            title="Atur Penerimaan & Hitung Susut"
+                            title={
+                              tx.printCount >= 1
+                                ? `Sudah dicetak ${tx.printCount} kali`
+                                : "Belum dicetak"
+                            }
                           >
-                            ⚖️ {tx.usePenerimaan ? "Terima: Ya" : "Terima"}
-                          </button>
-                          <button
-                            id={`reprint-receipt-btn-${tx.id}`}
-                            onClick={() => setReprintTx(tx)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[10px] py-1 px-2.5 shadow-sm transition cursor-pointer"
-                            title="Cetak Ulang Struk"
-                          >
-                            Cetak
-                          </button>
-                          <button
-                            id={`edit-tx-btn-${tx.id}`}
-                            onClick={() => setEditTx(tx)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[10px] py-1 px-2.5 shadow-sm transition cursor-pointer"
-                            title="Edit Transaksi"
-                          >
-                            <Edit className="w-3 h-3" /> Edit
-                          </button>
-                          <button
-                            id={`delete-tx-btn-${tx.id}`}
-                            onClick={() => setConfirmDeleteTx(tx)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-[10px] py-1 px-2.5 shadow-sm transition cursor-pointer"
-                            title="Hapus Transaksi"
-                          >
-                            <Trash2 className="w-3 h-3" /> Hapus
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {tx.printCount}x {tx.printCount >= 1 && "📋"}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                          <div className="flex justify-end gap-1 font-sans">
+                            <button
+                              id={`penerimaan-tx-btn-${tx.id}`}
+                              onClick={() => setPenerimaanTx(tx)}
+                              className={`inline-flex items-center justify-center w-7 h-7 rounded-lg border shadow-sm transition cursor-pointer ${tx.usePenerimaan
+                                  ? "border-emerald-200 bg-emerald-100 text-emerald-800"
+                                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                }`}
+                              title={tx.usePenerimaan ? "Hitung Susut: Ya" : "Atur Penerimaan & Hitung Susut"}
+                            >
+                              <Scale className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              id={`reprint-receipt-btn-${tx.id}`}
+                              onClick={() => setReprintTx(tx)}
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 shadow-sm transition cursor-pointer"
+                              title="Cetak Ulang Struk"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              id={`edit-tx-btn-${tx.id}`}
+                              onClick={() => setEditTx(tx)}
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm transition cursor-pointer"
+                              title="Edit Transaksi"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              id={`delete-tx-btn-${tx.id}`}
+                              onClick={() => setConfirmDeleteTx(tx)}
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 shadow-sm transition cursor-pointer"
+                              title="Hapus Transaksi"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

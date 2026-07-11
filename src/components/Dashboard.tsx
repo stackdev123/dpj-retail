@@ -132,6 +132,75 @@ export default function Dashboard() {
     0,
   );
 
+  // Today's breakdown for Card 1 (Cash, Transfer, Debt)
+  let todayCash = 0;
+  let todayTransfer = 0;
+  let todayDebt = 0;
+
+  todayTransactions.forEach((tx) => {
+    if (tx.paymentMethod === "cash") {
+      todayCash += tx.totalAmount;
+    } else if (tx.paymentMethod === "transfer") {
+      todayTransfer += tx.totalAmount;
+    } else if (tx.paymentMethod === "debt") {
+      todayCash += tx.amountPaid;
+      todayDebt += tx.remainingDebt;
+    } else if (tx.paymentMethod === "mix") {
+      todayCash += tx.cashAmount || 0;
+      todayTransfer += tx.transferAmount || 0;
+      todayDebt += tx.remainingDebt || 0;
+    }
+  });
+
+  // Debt breakdown for Card 2
+  const totalDebtPaymentsAllTime = debtPayments.reduce((sum, dp) => sum + dp.amountPaid, 0);
+  const totalDebtCreatedAllTime = activeRemainingDebt + totalDebtPaymentsAllTime;
+
+  // Filtered breakdown for Period KPI Card 1 (Total Omset)
+  let filteredCash = 0;
+  let filteredTransfer = 0;
+  let filteredDebt = 0;
+
+  filteredTransactions.forEach((tx) => {
+    if (tx.paymentMethod === "cash") {
+      filteredCash += tx.totalAmount;
+    } else if (tx.paymentMethod === "transfer") {
+      filteredTransfer += tx.totalAmount;
+    } else if (tx.paymentMethod === "debt") {
+      filteredCash += tx.amountPaid;
+      filteredDebt += tx.remainingDebt;
+    } else if (tx.paymentMethod === "mix") {
+      filteredCash += tx.cashAmount || 0;
+      filteredTransfer += tx.transferAmount || 0;
+      filteredDebt += tx.remainingDebt || 0;
+    }
+  });
+
+  // Filtered breakdown for Period KPI Card 2 (Pemasukan Tunai)
+  let periodCashReceived = 0;
+  let periodTransferReceived = 0;
+
+  filteredTransactions.forEach((tx) => {
+    if (tx.paymentMethod === "cash") {
+      periodCashReceived += tx.amountPaid;
+    } else if (tx.paymentMethod === "transfer") {
+      periodTransferReceived += tx.amountPaid;
+    } else if (tx.paymentMethod === "debt") {
+      periodCashReceived += tx.amountPaid;
+    } else if (tx.paymentMethod === "mix") {
+      periodCashReceived += tx.cashAmount || 0;
+      periodTransferReceived += tx.transferAmount || 0;
+    }
+  });
+
+  filteredPayments.forEach((dp) => {
+    if (dp.paymentMethod === "cash") {
+      periodCashReceived += dp.amountPaid;
+    } else {
+      periodTransferReceived += dp.amountPaid;
+    }
+  });
+
   // Calculate daily data for chart
   const dailyDataMap = new Map();
 
@@ -174,6 +243,56 @@ export default function Dashboard() {
   // Sort chronologically based on raw date, but since they're just strings, we might need a better sort if spanning multiple months
   // For simplicity, we just convert map to array
   const dailyData = Array.from(dailyDataMap.values());
+
+  const getCard1Title = () => {
+    switch (dateFilter) {
+      case "today":
+        return "Total Penjualan Hari Ini";
+      case "week":
+        return "Total Penjualan Minggu Ini";
+      case "month":
+        return "Total Penjualan Bulan Ini";
+      case "all":
+        return "Total Penjualan Semua Periode";
+      case "custom":
+        return "Total Penjualan Periode Kustom";
+      default:
+        return "Total Penjualan";
+    }
+  };
+
+  const getCard1Subtitle = () => {
+    switch (dateFilter) {
+      case "today":
+        return `Real-time per hari ini: ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}`;
+      case "week":
+      case "custom":
+        return `Periode: ${new Date(start).toLocaleDateString("id-ID", { day: "numeric", month: "short" })} s/d ${new Date(end).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}`;
+      case "month":
+        return `Periode: ${new Date(start).toLocaleDateString("id-ID", { month: "long", year: "numeric" })}`;
+      case "all":
+        return "Semua data transaksi tersimpan";
+      default:
+        return "Berdasarkan filter aktif";
+    }
+  };
+
+  const getCard1Badge = () => {
+    switch (dateFilter) {
+      case "today":
+        return "Hari Ini";
+      case "week":
+        return "Minggu Ini";
+      case "month":
+        return "Bulan Ini";
+      case "all":
+        return "Semua";
+      case "custom":
+        return "Kustom";
+      default:
+        return "Filter";
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -250,34 +369,52 @@ export default function Dashboard() {
       <div className="space-y-6">
         {/* Ringkasan Instan Admin */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Card 1: Total Penjualan Hari Ini */}
+          {/* Card 1: Total Penjualan (Dinamis Ikuti Filter) */}
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-[4px] bg-gradient-to-r from-emerald-500 to-teal-500 rounded-t-2xl"></div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
-                  <Calendar className="w-5 h-5 text-emerald-600" />
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
+                    <Calendar className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
+                      {getCard1Title()}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-semibold">
+                      {getCard1Subtitle()}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
-                    Total Penjualan Hari Ini
-                  </h3>
-                  <p className="text-[10px] text-slate-400 font-semibold">
-                    Real-time per hari ini: {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
-                  </p>
-                </div>
+                <span className="text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg uppercase tracking-wide">
+                  {getCard1Badge()}
+                </span>
               </div>
-              <span className="text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg uppercase tracking-wide">
-                Hari Ini
-              </span>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                  {formatRupiah(totalOmset)}
+                </span>
+                <span className="text-xs text-slate-500 font-semibold">
+                  ({txCount} Nota)
+                </span>
+              </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                {formatRupiah(totalSalesToday)}
-              </span>
-              <span className="text-xs text-slate-500 font-semibold">
-                ({todayTransactions.length} Nota)
-              </span>
+
+            {/* Breakdown Detail */}
+            <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+              <div className="bg-slate-50/50 rounded-xl p-2 border border-slate-100/60">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Tunai</span>
+                <span className="text-[11px] font-black text-emerald-600 font-mono mt-0.5 block">{formatRupiah(filteredCash)}</span>
+              </div>
+              <div className="bg-slate-50/50 rounded-xl p-2 border border-slate-100/60">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Transfer</span>
+                <span className="text-[11px] font-black text-blue-600 font-mono mt-0.5 block">{formatRupiah(filteredTransfer)}</span>
+              </div>
+              <div className="bg-slate-50/50 rounded-xl p-2 border border-slate-100/60">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Utang</span>
+                <span className="text-[11px] font-black text-orange-500 font-mono mt-0.5 block">{formatRupiah(filteredDebt)}</span>
+              </div>
             </div>
           </div>
 
@@ -361,21 +498,23 @@ export default function Dashboard() {
             <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
               <CreditCard className="w-16 h-16" />
             </div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-orange-50 text-orange-600 p-2 rounded-lg">
-                <TrendingDown className="w-5 h-5" />
-              </div>
-              <h3 className="font-semibold text-slate-600 text-sm">
-                Piutang Baru
-              </h3>
-            </div>
             <div>
-              <p className="text-2xl font-bold text-orange-600">
-                {formatRupiah(piutangBaru)}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                Utang belum terbayar periode ini
-              </p>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-orange-50 text-orange-600 p-2 rounded-lg">
+                  <TrendingDown className="w-5 h-5" />
+                </div>
+                <h3 className="font-semibold text-slate-600 text-sm">
+                  Piutang Baru
+                </h3>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-orange-600">
+                  {formatRupiah(piutangBaru)}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Utang belum terbayar periode ini
+                </p>
+              </div>
             </div>
           </div>
 
@@ -383,21 +522,23 @@ export default function Dashboard() {
             <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
               <Users className="w-16 h-16" />
             </div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
-                <Users className="w-5 h-5" />
-              </div>
-              <h3 className="font-semibold text-slate-600 text-sm">
-                Pelanggan Aktif
-              </h3>
-            </div>
             <div>
-              <p className="text-2xl font-bold text-slate-800">
-                {new Set(filteredTransactions.map((t) => t.customerId)).size}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                Pelanggan bertransaksi
-              </p>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
+                  <Users className="w-5 h-5" />
+                </div>
+                <h3 className="font-semibold text-slate-600 text-sm">
+                  Pelanggan Aktif
+                </h3>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-800">
+                  {new Set(filteredTransactions.map((t) => t.customerId)).size}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Pelanggan bertransaksi
+                </p>
+              </div>
             </div>
           </div>
         </div>

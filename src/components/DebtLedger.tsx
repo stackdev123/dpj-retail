@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Customer,
   Transaction,
@@ -73,6 +73,31 @@ export default function DebtLedger() {
   // Selected customer for Ledger Detail view
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
+  // Searchable customer dropdown states
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [customerSearchText, setCustomerSearchText] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Handle click outside searchable customer dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Reset search text when dropdown closes
+  useEffect(() => {
+    if (!isDropdownOpen) {
+      setCustomerSearchText("");
+    }
+  }, [isDropdownOpen]);
+
   // Month filter states
   const [filterType, setFilterType] = useState<"all" | "month">("month");
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -85,11 +110,18 @@ export default function DebtLedger() {
   // Modal open states
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
 
   // Pay Modal form state
   const [repayAmount, setRepayAmount] = useState<number | "">("");
   const [repayMethod, setRepayMethod] = useState<"cash" | "transfer">("cash");
   const [repayNotes, setRepayNotes] = useState("");
+
+  // Edit Payment Modal states
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editPaymentAmount, setEditPaymentAmount] = useState<number | "">("");
+  const [editPaymentMethod, setEditPaymentMethod] = useState<"cash" | "transfer">("cash");
+  const [editPaymentNotes, setEditPaymentNotes] = useState("");
 
   // Manual Transaction Modal form state
   const [manualType, setManualType] = useState<"debit" | "kredit">("debit");
@@ -160,10 +192,18 @@ export default function DebtLedger() {
     }
   }, [customers, selectedCustomerId]);
 
-  // Reset expanded dates when customer changes
+  // NOTE: Perubahan di sini.
+  // Sebelumnya, useEffect ini otomatis membuka (expand) SEMUA tanggal setiap kali
+  // pelanggan/bulan/data berubah, sehingga saat pertama kali membuka ledger,
+  // semua baris tanggal langsung dalam kondisi terbuka.
+  //
+  // Sekarang defaultnya TERTUTUP (collapsed) saat ledger pertama kali dibuka
+  // atau saat berpindah pelanggan/bulan. User harus klik tanggal atau tombol
+  // "Buka Semua Detail" untuk membuka detail transaksi.
   useEffect(() => {
+    // Reset ke tertutup semua setiap kali pelanggan/bulan/data berubah
     setExpandedDates({});
-  }, [selectedCustomerId]);
+  }, [selectedCustomerId, filterType, selectedMonth]);
 
   const handleRefresh = () => {
     loadData();
@@ -299,6 +339,64 @@ export default function DebtLedger() {
     } catch (err) {
       console.error(err);
       alert("Gagal mencatat setoran.");
+    }
+  };
+
+  const handleExpandAll = () => {
+    const keys: { [key: string]: boolean } = {};
+    ledgerEntries.forEach((entry) => {
+      const key = getLocalDateString(entry.date);
+      keys[key] = true;
+    });
+    setExpandedDates(keys);
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedDates({});
+  };
+
+  const handleOpenEditPayment = (entry: any) => {
+    setEditingPaymentId(entry.id);
+    setEditPaymentAmount(entry.credit);
+    setEditPaymentMethod(entry.paymentMethod);
+    setEditPaymentNotes(entry.description || "");
+    setIsEditPaymentModalOpen(true);
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus pembayaran ini? Tindakan ini akan mengembalikan tagihan pelanggan.")) {
+      return;
+    }
+    try {
+      await db.deleteDebtPayment(paymentId);
+      await loadData();
+      alert("Pembayaran berhasil dihapus!");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghapus pembayaran.");
+    }
+  };
+
+  const handleEditPaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPaymentId || !editPaymentAmount || Number(editPaymentAmount) <= 0) {
+      alert("Masukkan jumlah nominal yang valid.");
+      return;
+    }
+    try {
+      await db.editDebtPayment(
+        editingPaymentId,
+        Number(editPaymentAmount),
+        editPaymentMethod,
+        editPaymentNotes.trim()
+      );
+      await loadData();
+      setIsEditPaymentModalOpen(false);
+      setEditingPaymentId(null);
+      alert("Pembayaran berhasil diubah!");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal mengubah pembayaran.");
     }
   };
 
@@ -1048,8 +1146,8 @@ export default function DebtLedger() {
                 type="button"
                 onClick={() => setTab("detail")}
                 className={`px-4 py-1 text-[10px] font-black uppercase tracking-wider rounded-full transition-all duration-150 cursor-pointer ${tab === "detail"
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
                   }`}
               >
                 Detail
@@ -1058,8 +1156,8 @@ export default function DebtLedger() {
                 type="button"
                 onClick={() => setTab("rekap")}
                 className={`px-4 py-1 text-[10px] font-black uppercase tracking-wider rounded-full transition-all duration-150 cursor-pointer ${tab === "rekap"
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
                   }`}
               >
                 Rekap
@@ -1144,22 +1242,82 @@ export default function DebtLedger() {
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none sm:mt-0.5 shrink-0">
               PILIH PELANGGAN:
             </span>
-            <div className="relative inline-block min-w-[240px]">
-              <select
-                id="ledger-customer-select"
-                value={selectedCustomerId || ""}
-                onChange={(e) => setSelectedCustomerId(e.target.value || null)}
-                className="w-full appearance-none bg-white border-2 border-indigo-600/10 rounded-xl py-2 pl-3.5 pr-10 text-xs font-black text-indigo-700 focus:outline-none focus:border-indigo-600 transition shadow-sm cursor-pointer uppercase"
+            <div className="relative inline-block min-w-[240px]" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDropdownOpen(!isDropdownOpen);
+                  setCustomerSearchText("");
+                }}
+                className="w-full flex items-center justify-between bg-white border-2 border-indigo-600/10 rounded-xl py-2 pl-3.5 pr-4 text-xs font-black text-indigo-700 focus:outline-none focus:border-indigo-600 transition shadow-sm cursor-pointer uppercase text-left"
               >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id} className="text-slate-800 font-bold">
-                    {c.name.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none">
-                <ChevronDown className="w-4 h-4" />
-              </div>
+                <span>{selectedCustomer ? selectedCustomer.name.toUpperCase() : "PILIH PELANGGAN"}</span>
+                <ChevronDown className={`w-4 h-4 text-indigo-600 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isDropdownOpen && (
+                <div className="absolute left-0 mt-1.5 w-full bg-white border-2 border-indigo-600/15 rounded-xl shadow-lg z-50 overflow-hidden min-w-[280px]">
+                  {/* Search Input inside Dropdown */}
+                  <div className="relative border-b border-slate-100 p-2">
+                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                      <Search className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={customerSearchText}
+                      onChange={(e) => setCustomerSearchText(e.target.value)}
+                      placeholder="Cari pelanggan..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 pl-8 pr-8 text-xs font-bold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                      autoFocus
+                    />
+                    {customerSearchText && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomerSearchText("")}
+                        className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {/* Customer List inside Dropdown */}
+                  <div className="max-h-60 overflow-y-auto py-1">
+                    {customers.filter((c) =>
+                      c.name.toLowerCase().includes(customerSearchText.toLowerCase())
+                    ).length > 0 ? (
+                      customers
+                        .filter((c) =>
+                          c.name.toLowerCase().includes(customerSearchText.toLowerCase())
+                        )
+                        .map((c) => {
+                          const isSelected = c.id === selectedCustomerId;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCustomerId(c.id);
+                                setIsDropdownOpen(false);
+                                setCustomerSearchText("");
+                              }}
+                              className={`w-full text-left px-3.5 py-2 text-xs font-bold uppercase transition flex items-center justify-between ${isSelected
+                                ? "bg-indigo-50 text-indigo-700 font-black"
+                                : "text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
+                                }`}
+                            >
+                              <span>{c.name.toUpperCase()}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                            </button>
+                          );
+                        })
+                    ) : (
+                      <div className="px-3.5 py-2.5 text-xs font-semibold text-slate-400 text-center">
+                        Pelanggan tidak ditemukan
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {selectedCustomer && (
@@ -1186,6 +1344,24 @@ export default function DebtLedger() {
               <div className="hidden print:block border-b-2 border-slate-900 pb-4">
                 <h2 className="text-xl font-black text-slate-900">CV DPJ BERKAH UNGGAS</h2>
                 <p className="text-xs text-slate-500">Ledger Buku Besar - {selectedCustomer?.name.toUpperCase()}</p>
+              </div>
+
+              {/* TOGGLE CONTROLS */}
+              <div className="flex justify-end gap-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={handleExpandAll}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider py-2 px-3.5 rounded-lg shadow-sm transition cursor-pointer"
+                >
+                  Buka Semua Detail
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCollapseAll}
+                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[10px] font-black uppercase tracking-wider py-2 px-3.5 rounded-lg shadow-sm transition cursor-pointer"
+                >
+                  Tutup Semua Detail
+                </button>
               </div>
 
               {/* GRID STYLE TABLE ACCORDING TO USER'S SCREENSHOT */}
@@ -1363,20 +1539,36 @@ export default function DebtLedger() {
                               return (
                                 <tr key={`${entry.id}-${subIdx}`} className="bg-slate-50/60 hover:bg-slate-100/60 transition-all text-slate-500">
                                   <td className="py-2.5 px-3 border-r border-slate-950">
-                                    <div className="flex items-center gap-1.5 pl-3 text-[11px] font-medium font-sans text-left text-slate-500">
-                                      <span className="text-indigo-400 font-bold">↳</span>
-                                      <span className="truncate max-w-[150px] sm:max-w-[200px]" title={getEntryLabel(entry)}>
-                                        {getEntryLabel(entry)}
-                                      </span>
+                                    <div className="flex items-center justify-between pl-3 text-[11px] font-medium font-sans text-left text-slate-500">
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <span className="text-indigo-400 font-bold">↳</span>
+                                        <span className="truncate max-w-[150px] sm:max-w-[200px]" title={getEntryLabel(entry)}>
+                                          {getEntryLabel(entry)}
+                                        </span>
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
                                     {debitSubVal > 0 ? formatRupiah(debitSubVal) : "-"}
                                   </td>
-                                  <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
+                                  <td
+                                    onClick={entry.type === "payment" && creditTrfSub > 0 ? () => handleOpenEditPayment(entry) : undefined}
+                                    className={`py-2.5 px-3 text-center text-[11px] font-mono border-r border-slate-950 select-none ${entry.type === "payment" && creditTrfSub > 0
+                                      ? "text-indigo-600 font-extrabold hover:bg-amber-50 hover:text-amber-800 hover:scale-105 cursor-pointer transition-all underline decoration-dashed decoration-indigo-400 underline-offset-2"
+                                      : "text-slate-500"
+                                      }`}
+                                    title={entry.type === "payment" && creditTrfSub > 0 ? "Klik nominal ini untuk mengubah atau menghapus setoran" : undefined}
+                                  >
                                     {creditTrfSub > 0 ? formatRupiah(creditTrfSub) : "-"}
                                   </td>
-                                  <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500 border-r border-slate-950">
+                                  <td
+                                    onClick={entry.type === "payment" && creditCashSub > 0 ? () => handleOpenEditPayment(entry) : undefined}
+                                    className={`py-2.5 px-3 text-center text-[11px] font-mono border-r border-slate-950 select-none ${entry.type === "payment" && creditCashSub > 0
+                                      ? "text-emerald-600 font-extrabold hover:bg-amber-50 hover:text-amber-800 hover:scale-105 cursor-pointer transition-all underline decoration-dashed decoration-emerald-400 underline-offset-2"
+                                      : "text-slate-500"
+                                      }`}
+                                    title={entry.type === "payment" && creditCashSub > 0 ? "Klik nominal ini untuk mengubah atau menghapus setoran" : undefined}
+                                  >
                                     {creditCashSub > 0 ? formatRupiah(creditCashSub) : "-"}
                                   </td>
                                   <td className="py-2.5 px-3 text-center text-[11px] font-mono text-slate-500">
@@ -1618,8 +1810,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setRepayMethod("cash")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "cash"
-                          ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                        : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Cash (Tunai)
@@ -1628,8 +1820,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setRepayMethod("transfer")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "transfer"
-                          ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                        : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Transfer Bank
@@ -1708,8 +1900,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setManualType("debit")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualType === "debit"
-                          ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
-                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
+                        : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Debit (Beli / Utang)
@@ -1718,8 +1910,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setManualType("kredit")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualType === "kredit"
-                          ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
-                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
+                        : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Kredit (Setor / Potong)
@@ -1760,8 +1952,8 @@ export default function DebtLedger() {
                         type="button"
                         onClick={() => setManualPayMethod("cash")}
                         className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualPayMethod === "cash"
-                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                            : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
                           }`}
                       >
                         Cash (Tunai)
@@ -1770,8 +1962,8 @@ export default function DebtLedger() {
                         type="button"
                         onClick={() => setManualPayMethod("transfer")}
                         className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualPayMethod === "transfer"
-                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                            : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
                           }`}
                       >
                         Transfer Bank
@@ -1809,6 +2001,134 @@ export default function DebtLedger() {
                   >
                     <Check className="w-4 h-4" /> Simpan Penyesuaian
                   </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. EDIT PAYMENT MODAL */}
+      {isEditPaymentModalOpen && selectedCustomer && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl relative overflow-hidden space-y-4 animate-in zoom-in-95 duration-150 my-8">
+              <div className="absolute top-0 left-0 right-0 h-[4px] bg-amber-500"></div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-amber-500" /> Ubah Pembayaran / Setoran
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsEditPaymentModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-900 transition p-1 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 text-xs font-semibold text-slate-600 space-y-1">
+                <div>
+                  Pelanggan: <span className="font-black text-slate-900">{selectedCustomer.name.toUpperCase()}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
+                {/* Edit Payment Amount */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Jumlah Setor (Rp) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      required
+                      value={editPaymentAmount}
+                      onChange={(e) =>
+                        setEditPaymentAmount(e.target.value === "" ? "" : Number(e.target.value))
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-8 pr-3 text-xs font-black text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      placeholder="Masukkan jumlah pembayaran"
+                    />
+                  </div>
+                </div>
+
+                {/* Edit Payment Method */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                    Metode Setoran
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditPaymentMethod("cash")}
+                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${editPaymentMethod === "cash"
+                        ? "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
+                        : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        }`}
+                    >
+                      Cash (Tunai)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPaymentMethod("transfer")}
+                      className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${editPaymentMethod === "transfer"
+                        ? "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
+                        : "border-slate-200 bg-slate-50/50 text-slate-600"
+                        }`}
+                    >
+                      Transfer Bank
+                    </button>
+                  </div>
+                </div>
+
+                {/* Edit Payment Notes */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Catatan Setoran
+                  </label>
+                  <textarea
+                    placeholder="Contoh: Cicilan nota ke-3, bayar lunas, dll."
+                    value={editPaymentNotes}
+                    onChange={(e) => setEditPaymentNotes(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none resize-none"
+                  />
+                </div>
+
+                {/* Form buttons */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (editingPaymentId) {
+                        setIsEditPaymentModalOpen(false);
+                        await handleDeletePayment(editingPaymentId);
+                      }
+                    }}
+                    className="rounded-xl bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-750 border border-red-200 px-3.5 py-2.5 text-xs font-black uppercase tracking-wider transition cursor-pointer"
+                  >
+                    Hapus Setoran
+                  </button>
+                  <div className="flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditPaymentModalOpen(false)}
+                      className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" /> Simpan Perubahan
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
