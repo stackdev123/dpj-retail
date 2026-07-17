@@ -332,7 +332,12 @@ export default function Reports() {
         cashVal = tx.cashAmount || 0;
         trfVal = tx.transferAmount || 0;
       } else if (tx.paymentMethod === "debt") {
-        cashVal = tx.amountPaid || 0;
+        if (tx.cashAmount !== undefined || tx.transferAmount !== undefined) {
+          cashVal = tx.cashAmount || 0;
+          trfVal = tx.transferAmount || 0;
+        } else {
+          cashVal = tx.amountPaid || 0;
+        }
       }
 
       return [
@@ -770,7 +775,12 @@ export default function Reports() {
                       cashVal = tx.cashAmount || 0;
                       trfVal = tx.transferAmount || 0;
                     } else if (tx.paymentMethod === "debt") {
-                      cashVal = tx.amountPaid || 0;
+                      if (tx.cashAmount !== undefined || tx.transferAmount !== undefined) {
+                        cashVal = tx.cashAmount || 0;
+                        trfVal = tx.transferAmount || 0;
+                      } else {
+                        cashVal = tx.amountPaid || 0;
+                      }
                     }
 
                     return (

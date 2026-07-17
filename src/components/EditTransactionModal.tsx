@@ -56,10 +56,14 @@ export default function EditTransactionModal({
 
     // States for mix payment
     const [mixCashAmount, setMixCashAmount] = useState<number | "">(
-        transaction.paymentMethod === "mix" ? (transaction.cashAmount || 0) : ""
+        transaction.paymentMethod === "mix" || transaction.paymentMethod === "debt"
+            ? (transaction.cashAmount !== undefined ? transaction.cashAmount : (transaction.paymentMethod === "debt" ? transaction.amountPaid : ""))
+            : ""
     );
     const [mixTransferAmount, setMixTransferAmount] = useState<number | "">(
-        transaction.paymentMethod === "mix" ? (transaction.transferAmount || 0) : ""
+        transaction.paymentMethod === "mix" || transaction.paymentMethod === "debt"
+            ? (transaction.transferAmount !== undefined ? transaction.transferAmount : "")
+            : ""
     );
 
     // Cart Form State
@@ -106,7 +110,10 @@ export default function EditTransactionModal({
         if (paymentMethod === "cash" || paymentMethod === "transfer") {
             setAmountPaid(cartTotal);
         } else if (paymentMethod === "debt") {
-            // Keep or let user manage
+            if (mixCashAmount === "" && mixTransferAmount === "") {
+                setMixCashAmount(0);
+                setMixTransferAmount(0);
+            }
         } else if (paymentMethod === "mix") {
             if (mixCashAmount === "" && mixTransferAmount === "") {
                 setMixCashAmount(Math.round(cartTotal * 0.5));
@@ -116,6 +123,10 @@ export default function EditTransactionModal({
     }, [paymentMethod, cartTotal]);
 
     const handleMixCashChange = (val: string) => {
+        if (paymentMethod === "debt") {
+            setMixCashAmount(val === "" ? "" : Number(val));
+            return;
+        }
         if (val === "") {
             setMixCashAmount("");
             setMixTransferAmount(cartTotal);
@@ -127,6 +138,10 @@ export default function EditTransactionModal({
     };
 
     const handleMixTransferChange = (val: string) => {
+        if (paymentMethod === "debt") {
+            setMixTransferAmount(val === "" ? "" : Number(val));
+            return;
+        }
         if (val === "") {
             setMixTransferAmount("");
             setMixCashAmount(cartTotal);
@@ -250,6 +265,10 @@ export default function EditTransactionModal({
                 );
                 return;
             }
+        } else if (paymentMethod === "debt") {
+            cashAmt = Number(mixCashAmount) || 0;
+            transAmt = Number(mixTransferAmount) || 0;
+            paid = cashAmt + transAmt;
         } else if (paymentMethod !== "debt" && paid < cartTotal) {
             alert(
                 `Jumlah bayar (${formatRupiah(paid)}) kurang dari total belanja (${formatRupiah(cartTotal)}).`,
@@ -550,11 +569,11 @@ export default function EditTransactionModal({
                             </div>
 
                             {/* Amount Paid / Mix Inputs */}
-                            {paymentMethod === "mix" ? (
+                            {paymentMethod === "mix" || paymentMethod === "debt" ? (
                                 <div className="grid grid-cols-2 gap-2.5">
                                     <div className="space-y-1.5">
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                            Tunai / Cash (Rp)
+                                            {paymentMethod === "debt" ? "Uang Muka Cash (Rp)" : "Tunai / Cash (Rp)"}
                                         </label>
                                         <div className="relative">
                                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
@@ -570,7 +589,7 @@ export default function EditTransactionModal({
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                            Transfer (Rp)
+                                            {paymentMethod === "debt" ? "Uang Muka Transfer (Rp)" : "Transfer (Rp)"}
                                         </label>
                                         <div className="relative">
                                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
@@ -588,9 +607,7 @@ export default function EditTransactionModal({
                             ) : (
                                 <div className="space-y-1.5">
                                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                        {paymentMethod === "debt"
-                                            ? "Uang Muka / DP (Rp)"
-                                            : "Jumlah Uang Diterima (Rp)"}
+                                        Jumlah Uang Diterima (Rp)
                                     </label>
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
@@ -639,6 +656,35 @@ export default function EditTransactionModal({
                                             </span>
                                         </div>
                                     </>
+                                ) : paymentMethod === "debt" ? (
+                                    <>
+                                        <div className="flex justify-between text-slate-500">
+                                            <span>Uang Muka Cash:</span>
+                                            <span className="font-bold font-mono">
+                                                {formatRupiah(Number(mixCashAmount) || 0)}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-500">
+                                            <span>Uang Muka Transfer:</span>
+                                            <span className="font-bold font-mono">
+                                                {formatRupiah(Number(mixTransferAmount) || 0)}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-500 pt-1.5 border-t border-dashed border-slate-200">
+                                            <span>Total Uang Muka (DP):</span>
+                                            <span className="font-bold font-mono">
+                                                {formatRupiah((Number(mixCashAmount) || 0) + (Number(mixTransferAmount) || 0))}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-red-600 font-bold pt-1.5 border-t border-dashed border-slate-200">
+                                            <span>Sisa Jadi Utang:</span>
+                                            <span className="font-black font-mono">
+                                                {formatRupiah(
+                                                    Math.max(0, cartTotal - ((Number(mixCashAmount) || 0) + (Number(mixTransferAmount) || 0))),
+                                                )}
+                                            </span>
+                                        </div>
+                                    </>
                                 ) : (
                                     <>
                                         <div className="flex justify-between">
@@ -648,25 +694,14 @@ export default function EditTransactionModal({
                                             </span>
                                         </div>
 
-                                        {paymentMethod !== "debt" ? (
-                                            <div className="flex justify-between text-emerald-600 font-bold pt-1.5 border-t border-dashed border-slate-200">
-                                                <span>Uang Kembali:</span>
-                                                <span className="font-black font-mono">
-                                                    {formatRupiah(
-                                                        Math.max(0, (Number(amountPaid) || 0) - cartTotal),
-                                                    )}
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex justify-between text-red-600 font-bold pt-1.5 border-t border-dashed border-slate-200">
-                                                <span>Sisa Jadi Utang:</span>
-                                                <span className="font-black font-mono">
-                                                    {formatRupiah(
-                                                        Math.max(0, cartTotal - (Number(amountPaid) || 0)),
-                                                    )}
-                                                </span>
-                                            </div>
-                                        )}
+                                        <div className="flex justify-between text-emerald-600 font-bold pt-1.5 border-t border-dashed border-slate-200">
+                                            <span>Uang Kembali:</span>
+                                            <span className="font-black font-mono">
+                                                {formatRupiah(
+                                                    Math.max(0, (Number(amountPaid) || 0) - cartTotal),
+                                                )}
+                                            </span>
+                                        </div>
                                     </>
                                 )}
                             </div>

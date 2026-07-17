@@ -593,11 +593,18 @@ export default function DebtLedger() {
       if (isSale) {
         if (entry.paymentMethod === "transfer") {
           creditTrfVal = formatRupiah(entry.credit);
-        } else if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") {
+        } else if (entry.paymentMethod === "cash") {
           creditCashVal = formatRupiah(entry.credit);
         } else if (entry.paymentMethod === "mix") {
           creditTrfVal = formatRupiah(entry.transferAmount || 0);
           creditCashVal = formatRupiah(entry.cashAmount || 0);
+        } else if (entry.paymentMethod === "debt") {
+          if (entry.cashAmount !== undefined || entry.transferAmount !== undefined) {
+            creditTrfVal = entry.transferAmount ? formatRupiah(entry.transferAmount) : "-";
+            creditCashVal = entry.cashAmount ? formatRupiah(entry.cashAmount) : "-";
+          } else {
+            creditCashVal = formatRupiah(entry.credit);
+          }
         }
       } else {
         if (entry.paymentMethod === "transfer") {
@@ -978,11 +985,18 @@ export default function DebtLedger() {
       if (isSale) {
         if (entry.paymentMethod === "transfer") {
           creditTrf = entry.credit;
-        } else if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") {
+        } else if (entry.paymentMethod === "cash") {
           creditCash = entry.credit;
         } else if (entry.paymentMethod === "mix") {
           creditTrf = entry.transferAmount || 0;
           creditCash = entry.cashAmount || 0;
+        } else if (entry.paymentMethod === "debt") {
+          if (entry.cashAmount !== undefined || entry.transferAmount !== undefined) {
+            creditTrf = entry.transferAmount || 0;
+            creditCash = entry.cashAmount || 0;
+          } else {
+            creditCash = entry.credit;
+          }
         }
       } else {
         if (entry.paymentMethod === "transfer") {
@@ -1102,6 +1116,7 @@ export default function DebtLedger() {
     } else {
       if (entry.paymentMethod === "transfer") return sum + entry.credit;
       if (entry.paymentMethod === "mix") return sum + (entry.transferAmount || 0);
+      if (entry.paymentMethod === "debt") return sum + (entry.transferAmount || 0);
       return sum;
     }
   }, 0);
@@ -1109,8 +1124,15 @@ export default function DebtLedger() {
     if (entry.type === "payment") {
       return sum + (entry.paymentMethod === "cash" ? entry.credit : 0);
     } else {
-      if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") return sum + entry.credit;
+      if (entry.paymentMethod === "cash") return sum + entry.credit;
       if (entry.paymentMethod === "mix") return sum + (entry.cashAmount || 0);
+      if (entry.paymentMethod === "debt") {
+        if (entry.cashAmount !== undefined || entry.transferAmount !== undefined) {
+          return sum + (entry.cashAmount || 0);
+        } else {
+          return sum + entry.credit;
+        }
+      }
       return sum;
     }
   }, 0);
@@ -1449,11 +1471,18 @@ export default function DebtLedger() {
                           if (isSale) {
                             if (entry.paymentMethod === "transfer") {
                               creditTrf = entry.credit;
-                            } else if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") {
+                            } else if (entry.paymentMethod === "cash") {
                               creditCash = entry.credit;
                             } else if (entry.paymentMethod === "mix") {
                               creditTrf = entry.transferAmount || 0;
                               creditCash = entry.cashAmount || 0;
+                            } else if (entry.paymentMethod === "debt") {
+                              if (entry.cashAmount !== undefined || entry.transferAmount !== undefined) {
+                                creditTrf = entry.transferAmount || 0;
+                                creditCash = entry.cashAmount || 0;
+                              } else {
+                                creditCash = entry.credit;
+                              }
                             }
                           } else {
                             if (entry.paymentMethod === "transfer") {
@@ -1520,11 +1549,18 @@ export default function DebtLedger() {
                               if (isSaleSub) {
                                 if (entry.paymentMethod === "transfer") {
                                   creditTrfSub = entry.credit;
-                                } else if (entry.paymentMethod === "cash" || entry.paymentMethod === "debt") {
+                                } else if (entry.paymentMethod === "cash") {
                                   creditCashSub = entry.credit;
                                 } else if (entry.paymentMethod === "mix") {
                                   creditTrfSub = entry.transferAmount || 0;
                                   creditCashSub = entry.cashAmount || 0;
+                                } else if (entry.paymentMethod === "debt") {
+                                  if (entry.cashAmount !== undefined || entry.transferAmount !== undefined) {
+                                    creditTrfSub = entry.transferAmount || 0;
+                                    creditCashSub = entry.cashAmount || 0;
+                                  } else {
+                                    creditCashSub = entry.credit;
+                                  }
                                 }
                               } else {
                                 if (entry.paymentMethod === "transfer") {
