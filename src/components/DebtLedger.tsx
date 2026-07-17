@@ -149,9 +149,15 @@ export default function DebtLedger() {
     const filteredCusts = custs.filter(c => c.name.toLowerCase() !== "pelanggan umum");
     const filteredSummaries = summaries.filter(s => s.customerName.toLowerCase() !== "pelanggan umum");
 
+    const activeTxs = txs.filter((tx) => !tx.isDeleted);
+    const activePayments = payments.filter((dp) => {
+      const parentTx = txs.find((t) => t.id === dp.transactionId);
+      return !parentTx || !parentTx.isDeleted;
+    });
+
     setCustomers(filteredCusts);
-    setTransactions(txs);
-    setDebtPayments(payments);
+    setTransactions(activeTxs);
+    setDebtPayments(activePayments);
     setDebtSummaries(filteredSummaries);
 
     // Auto select the first customer if none selected yet
@@ -192,16 +198,8 @@ export default function DebtLedger() {
     }
   }, [customers, selectedCustomerId]);
 
-  // NOTE: Perubahan di sini.
-  // Sebelumnya, useEffect ini otomatis membuka (expand) SEMUA tanggal setiap kali
-  // pelanggan/bulan/data berubah, sehingga saat pertama kali membuka ledger,
-  // semua baris tanggal langsung dalam kondisi terbuka.
-  //
-  // Sekarang defaultnya TERTUTUP (collapsed) saat ledger pertama kali dibuka
-  // atau saat berpindah pelanggan/bulan. User harus klik tanggal atau tombol
-  // "Buka Semua Detail" untuk membuka detail transaksi.
+  // By default, collapse all dates when customer or filters change
   useEffect(() => {
-    // Reset ke tertutup semua setiap kali pelanggan/bulan/data berubah
     setExpandedDates({});
   }, [selectedCustomerId, filterType, selectedMonth]);
 
@@ -1146,8 +1144,8 @@ export default function DebtLedger() {
                 type="button"
                 onClick={() => setTab("detail")}
                 className={`px-4 py-1 text-[10px] font-black uppercase tracking-wider rounded-full transition-all duration-150 cursor-pointer ${tab === "detail"
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-500 hover:text-slate-900"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
                   }`}
               >
                 Detail
@@ -1156,8 +1154,8 @@ export default function DebtLedger() {
                 type="button"
                 onClick={() => setTab("rekap")}
                 className={`px-4 py-1 text-[10px] font-black uppercase tracking-wider rounded-full transition-all duration-150 cursor-pointer ${tab === "rekap"
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-500 hover:text-slate-900"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
                   }`}
               >
                 Rekap
@@ -1301,8 +1299,8 @@ export default function DebtLedger() {
                                 setCustomerSearchText("");
                               }}
                               className={`w-full text-left px-3.5 py-2 text-xs font-bold uppercase transition flex items-center justify-between ${isSelected
-                                ? "bg-indigo-50 text-indigo-700 font-black"
-                                : "text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
+                                  ? "bg-indigo-50 text-indigo-700 font-black"
+                                  : "text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
                                 }`}
                             >
                               <span>{c.name.toUpperCase()}</span>
@@ -1554,8 +1552,8 @@ export default function DebtLedger() {
                                   <td
                                     onClick={entry.type === "payment" && creditTrfSub > 0 ? () => handleOpenEditPayment(entry) : undefined}
                                     className={`py-2.5 px-3 text-center text-[11px] font-mono border-r border-slate-950 select-none ${entry.type === "payment" && creditTrfSub > 0
-                                      ? "text-indigo-600 font-extrabold hover:bg-amber-50 hover:text-amber-800 hover:scale-105 cursor-pointer transition-all underline decoration-dashed decoration-indigo-400 underline-offset-2"
-                                      : "text-slate-500"
+                                        ? "text-indigo-600 font-extrabold hover:bg-amber-50 hover:text-amber-800 hover:scale-105 cursor-pointer transition-all underline decoration-dashed decoration-indigo-400 underline-offset-2"
+                                        : "text-slate-500"
                                       }`}
                                     title={entry.type === "payment" && creditTrfSub > 0 ? "Klik nominal ini untuk mengubah atau menghapus setoran" : undefined}
                                   >
@@ -1564,8 +1562,8 @@ export default function DebtLedger() {
                                   <td
                                     onClick={entry.type === "payment" && creditCashSub > 0 ? () => handleOpenEditPayment(entry) : undefined}
                                     className={`py-2.5 px-3 text-center text-[11px] font-mono border-r border-slate-950 select-none ${entry.type === "payment" && creditCashSub > 0
-                                      ? "text-emerald-600 font-extrabold hover:bg-amber-50 hover:text-amber-800 hover:scale-105 cursor-pointer transition-all underline decoration-dashed decoration-emerald-400 underline-offset-2"
-                                      : "text-slate-500"
+                                        ? "text-emerald-600 font-extrabold hover:bg-amber-50 hover:text-amber-800 hover:scale-105 cursor-pointer transition-all underline decoration-dashed decoration-emerald-400 underline-offset-2"
+                                        : "text-slate-500"
                                       }`}
                                     title={entry.type === "payment" && creditCashSub > 0 ? "Klik nominal ini untuk mengubah atau menghapus setoran" : undefined}
                                   >
@@ -1810,8 +1808,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setRepayMethod("cash")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "cash"
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Cash (Tunai)
@@ -1820,8 +1818,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setRepayMethod("transfer")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${repayMethod === "transfer"
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Transfer Bank
@@ -1900,8 +1898,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setManualType("debit")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualType === "debit"
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Debit (Beli / Utang)
@@ -1910,8 +1908,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setManualType("kredit")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualType === "kredit"
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Kredit (Setor / Potong)
@@ -1952,8 +1950,8 @@ export default function DebtLedger() {
                         type="button"
                         onClick={() => setManualPayMethod("cash")}
                         className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualPayMethod === "cash"
-                          ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                            : "border-slate-200 bg-slate-50/50 text-slate-600"
                           }`}
                       >
                         Cash (Tunai)
@@ -1962,8 +1960,8 @@ export default function DebtLedger() {
                         type="button"
                         onClick={() => setManualPayMethod("transfer")}
                         className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${manualPayMethod === "transfer"
-                          ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
-                          : "border-slate-200 bg-slate-50/50 text-slate-600"
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs"
+                            : "border-slate-200 bg-slate-50/50 text-slate-600"
                           }`}
                       >
                         Transfer Bank
@@ -2067,8 +2065,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setEditPaymentMethod("cash")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${editPaymentMethod === "cash"
-                        ? "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          ? "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Cash (Tunai)
@@ -2077,8 +2075,8 @@ export default function DebtLedger() {
                       type="button"
                       onClick={() => setEditPaymentMethod("transfer")}
                       className={`py-2 px-3 rounded-xl border text-center text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${editPaymentMethod === "transfer"
-                        ? "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 text-slate-600"
+                          ? "border-amber-500 bg-amber-50 text-amber-700 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600"
                         }`}
                     >
                       Transfer Bank

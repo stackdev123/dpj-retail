@@ -200,6 +200,12 @@ export const db = {
       let cashAmount = undefined;
       let transferAmount = undefined;
       let notes = tx.notes || "";
+      let isDeleted = false;
+
+      if (notes && notes.includes("[DELETED]")) {
+        isDeleted = true;
+        notes = notes.replace(/\[DELETED\]\s*/, "").trim();
+      }
 
       if (notes && notes.includes("[MIX_PAYMENT:")) {
         const match = notes.match(/\[MIX_PAYMENT:cash=(\d+);transfer=(\d+)\]/);
@@ -207,7 +213,7 @@ export const db = {
           paymentMethod = 'mix';
           cashAmount = Number(match[1]);
           transferAmount = Number(match[2]);
-          notes = notes.replace(/\[MIX_PAYMENT:[^\]]+\]\s*/, "");
+          notes = notes.replace(/\[MIX_PAYMENT:[^\]]+\]\s*/, "").trim();
         }
       }
 
@@ -226,6 +232,7 @@ export const db = {
         cashAmount,
         transferAmount,
         usePenerimaan: tx.use_penerimaan || false,
+        isDeleted,
         items: tx.transaction_items.map((item: any) => ({
           itemId: item.item_id,
           name: item.name,
@@ -250,9 +257,26 @@ export const db = {
       notes = `[MIX_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
     }
 
+    const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+
+    let customerId: string | null = transaction.customerId;
+    if (!customerId || !isValidUUID(customerId)) {
+      const { data: generalCust } = await supabase
+        .from("customers")
+        .select("id")
+        .ilike("name", "Pelanggan Umum")
+        .limit(1);
+
+      if (generalCust && generalCust.length > 0) {
+        customerId = generalCust[0].id;
+      } else {
+        customerId = null;
+      }
+    }
+
     const txPayload = {
       invoice_number: transaction.invoiceNumber,
-      customer_id: transaction.customerId,
+      customer_id: customerId,
       customer_name: transaction.customerName,
       total_amount: transaction.totalAmount,
       payment_method: dbPaymentMethod,
@@ -273,13 +297,13 @@ export const db = {
 
     if (txError || !txData) {
       console.warn("Error saving transaction:", txError);
-      return;
+      throw new Error(txError?.message || "Gagal menyimpan transaksi ke database.");
     }
 
     // Insert transaction items
     const itemsPayload = transaction.items.map((item) => ({
       transaction_id: txData.id,
-      item_id: item.itemId,
+      item_id: (item.itemId && isValidUUID(item.itemId)) ? item.itemId : null,
       name: item.name,
       price: item.price,
       quantity: item.quantity,
@@ -288,18 +312,24 @@ export const db = {
       received_quantity: item.receivedQuantity !== undefined ? item.receivedQuantity : null,
     }));
 
-    await supabase.from("transaction_items").insert(itemsPayload);
+    const { error: itemsError } = await supabase.from("transaction_items").insert(itemsPayload);
+    if (itemsError) {
+      console.warn("Error saving transaction items:", itemsError);
+      throw new Error(itemsError.message || "Gagal menyimpan detail item transaksi ke database.");
+    }
 
     // Update price memories
     for (const item of transaction.items) {
-      const pmPayload = {
-        item_id: item.itemId,
-        last_price: item.price,
-      };
-      // Upsert price memory
-      await supabase
-        .from("price_memory")
-        .upsert(pmPayload, { onConflict: "item_id" });
+      if (item.itemId && isValidUUID(item.itemId)) {
+        const pmPayload = {
+          item_id: item.itemId,
+          last_price: item.price,
+        };
+        // Upsert price memory
+        await supabase
+          .from("price_memory")
+          .upsert(pmPayload, { onConflict: "item_id" });
+      }
     }
 
     // Log transaction creation
@@ -622,7 +652,7 @@ export const db = {
     for (const customer of customers) {
       if (customer.name.toLowerCase() === "pelanggan umum" || customer.id === "cust-1") continue;
 
-      const customerTxs = txs.filter((t) => t.customerId === customer.id);
+      const customerTxs = txs.filter((t) => t.customerId === customer.id && !t.isDeleted);
       const customerPayments = payments.filter((p) => p.customerId === customer.id);
 
       const temp: any[] = [];
@@ -1121,8 +1151,25 @@ export const db = {
       notes = `[MIX_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
     }
 
+    const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+
+    let customerId: string | null = transaction.customerId;
+    if (!customerId || !isValidUUID(customerId)) {
+      const { data: generalCust } = await supabase
+        .from("customers")
+        .select("id")
+        .ilike("name", "Pelanggan Umum")
+        .limit(1);
+
+      if (generalCust && generalCust.length > 0) {
+        customerId = generalCust[0].id;
+      } else {
+        customerId = null;
+      }
+    }
+
     const txPayload = {
-      customer_id: transaction.customerId,
+      customer_id: customerId,
       customer_name: transaction.customerName,
       total_amount: transaction.totalAmount,
       payment_method: dbPaymentMethod,
@@ -1155,7 +1202,7 @@ export const db = {
 
     const itemsPayload = transaction.items.map((item) => ({
       transaction_id: transaction.id,
-      item_id: item.itemId,
+      item_id: (item.itemId && isValidUUID(item.itemId)) ? item.itemId : null,
       name: item.name,
       price: item.price,
       quantity: item.quantity,
@@ -1175,13 +1222,15 @@ export const db = {
 
     // 6. Update price memories
     for (const item of transaction.items) {
-      const pmPayload = {
-        item_id: item.itemId,
-        last_price: item.price,
-      };
-      await supabase
-        .from("price_memory")
-        .upsert(pmPayload, { onConflict: "item_id" });
+      if (item.itemId && isValidUUID(item.itemId)) {
+        const pmPayload = {
+          item_id: item.itemId,
+          last_price: item.price,
+        };
+        await supabase
+          .from("price_memory")
+          .upsert(pmPayload, { onConflict: "item_id" });
+      }
     }
 
     // 7. Log activity
@@ -1197,17 +1246,22 @@ export const db = {
   async deleteTransaction(id: string): Promise<void> {
     const { data: tx } = await supabase
       .from("transactions")
-      .select("invoice_number, customer_name, total_amount")
+      .select("invoice_number, customer_name, total_amount, notes")
       .eq("id", id)
       .single();
 
     const invoiceNum = tx ? tx.invoice_number : "Unknown";
     const custName = tx ? tx.customer_name : "Unknown";
     const totalAmount = tx ? Number(tx.total_amount) : 0;
+    let notes = tx ? tx.notes || "" : "";
+
+    if (!notes.includes("[DELETED]")) {
+      notes = `[DELETED] ${notes}`.trim();
+    }
 
     const { error } = await supabase
       .from("transactions")
-      .delete()
+      .update({ notes })
       .eq("id", id);
 
     if (error) {
@@ -1219,6 +1273,41 @@ export const db = {
       "DELETE",
       "Penjualan",
       `Menghapus Transaksi ${invoiceNum} (${custName}) senilai Rp ${totalAmount.toLocaleString("id-ID")}`
+    );
+
+    invalidateCache(["transactions", "customerDebtSummaries", "activityLogs"]);
+  },
+
+  async restoreTransaction(id: string): Promise<void> {
+    const { data: tx } = await supabase
+      .from("transactions")
+      .select("invoice_number, customer_name, total_amount, notes")
+      .eq("id", id)
+      .single();
+
+    const invoiceNum = tx ? tx.invoice_number : "Unknown";
+    const custName = tx ? tx.customer_name : "Unknown";
+    const totalAmount = tx ? Number(tx.total_amount) : 0;
+    let notes = tx ? tx.notes || "" : "";
+
+    if (notes.includes("[DELETED]")) {
+      notes = notes.replace(/\[DELETED\]\s*/, "").trim();
+    }
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({ notes: notes || null })
+      .eq("id", id);
+
+    if (error) {
+      console.warn("Error restoring transaction:", error);
+      throw error;
+    }
+
+    await this.addActivityLog(
+      "RESTORE",
+      "Penjualan",
+      `Memulihkan Transaksi ${invoiceNum} (${custName}) senilai Rp ${totalAmount.toLocaleString("id-ID")}`
     );
 
     invalidateCache(["transactions", "customerDebtSummaries", "activityLogs"]);

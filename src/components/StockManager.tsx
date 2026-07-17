@@ -80,7 +80,7 @@ export default function StockManager() {
                 db.getStockOpnames()
             ]);
             setItems(itemsData);
-            setTransactions(txData);
+            setTransactions(txData.filter((tx) => !tx.isDeleted));
             setStockIns(stockInData);
             setStockOpnames(opnameData);
 

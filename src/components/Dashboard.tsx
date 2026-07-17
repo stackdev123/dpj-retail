@@ -43,8 +43,13 @@ export default function Dashboard() {
       db.getDebtPayments(),
       db.getCustomers(),
     ]);
-    setTransactions(txs);
-    setDebtPayments(payments);
+    const activeTxs = txs.filter((tx) => !tx.isDeleted);
+    const activePayments = payments.filter((dp) => {
+      const parentTx = txs.find((t) => t.id === dp.transactionId);
+      return !parentTx || !parentTx.isDeleted;
+    });
+    setTransactions(activeTxs);
+    setDebtPayments(activePayments);
     setCustomers(custs);
   };
 
