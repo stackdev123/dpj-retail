@@ -21,12 +21,14 @@ import {
   ChevronDown,
   Printer,
   Scale,
+  RotateCcw,
 } from "lucide-react";
 
 export default function Reports() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [debtSummaries, setDebtSummaries] = useState<CustomerDebtSummary[]>([]);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   // Selected view: 'all' | 'customer' | 'daily_items'
   const [reportTab, setReportTab] = useState<
@@ -97,6 +99,15 @@ export default function Reports() {
     }
   };
 
+  const handleRestoreTx = async (txId: string) => {
+    try {
+      await db.restoreTransaction(txId);
+      loadData();
+    } catch (e) {
+      alert("Gagal memulihkan transaksi.");
+    }
+  };
+
   const handleSavePenerimaan = async () => {
     if (!editingPenerimaan) return;
     try {
@@ -120,6 +131,9 @@ export default function Reports() {
   // Filter logic for general sales report
   const filteredTransactions = transactions
     .filter((tx) => {
+      // Soft deletion status filter
+      const matchesDeletedStatus = showDeleted ? tx.isDeleted === true : !tx.isDeleted;
+
       // Search query filter (customer name or invoice number)
       const matchesQuery =
         tx.customerName.toLowerCase().includes(filterQuery.toLowerCase()) ||
@@ -143,7 +157,7 @@ export default function Reports() {
         matchesDate = matchesDate && txTime <= end.getTime();
       }
 
-      return matchesQuery && matchesMethod && matchesDate;
+      return matchesDeletedStatus && matchesQuery && matchesMethod && matchesDate;
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort newest first
 
@@ -166,7 +180,7 @@ export default function Reports() {
   const filteredCustomerReports = debtSummaries
     .map((summary) => {
       const custTxs = transactions.filter(
-        (t) => t.customerId === summary.customerId,
+        (t) => t.customerId === summary.customerId && !t.isDeleted,
       );
       const totalTransactions = custTxs.length;
       const totalSpent = custTxs.reduce((sum, t) => sum + t.totalAmount, 0);
@@ -529,9 +543,36 @@ export default function Reports() {
 
       {/* FILTERS & SEARCH */}
       <div className="bg-white rounded-2xl border border-slate-200/50 p-5 shadow-sm space-y-4">
-        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2">
-          <Filter className="w-4 h-4 text-red-600" /> Filter & Filter Pencarian
-        </h4>
+        <div className="flex items-center justify-between border-b border-slate-50 pb-2 flex-wrap gap-2">
+          <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+            <Filter className="w-4 h-4 text-red-600" /> Filter & Filter Pencarian
+          </h4>
+
+          {reportTab === "all" && (
+            <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
+              <button
+                type="button"
+                onClick={() => setShowDeleted(false)}
+                className={`rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition cursor-pointer ${!showDeleted
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-600 hover:text-slate-950"
+                  }`}
+              >
+                Transaksi Aktif
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleted(true)}
+                className={`rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition flex items-center gap-1 cursor-pointer ${showDeleted
+                    ? "bg-red-50 text-red-700 shadow-sm"
+                    : "text-slate-600 hover:text-red-700"
+                  }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Sampah / Terhapus
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
           {/* Query search (invoice or customer) */}
@@ -738,7 +779,14 @@ export default function Reports() {
                         className="hover:bg-slate-50/30 transition-all duration-150"
                       >
                         <td className="py-3.5 px-5 font-black text-slate-900 font-mono">
-                          {tx.invoiceNumber}
+                          <div className="flex items-center gap-1.5">
+                            <span>{tx.invoiceNumber}</span>
+                            {tx.isDeleted && (
+                              <span className="inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-red-700 tracking-wider">
+                                Terhapus
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-5 text-slate-500 whitespace-nowrap font-medium">
                           {formatDate(tx.date, true)}
@@ -833,41 +881,53 @@ export default function Reports() {
                         </td>
                         <td className="py-3.5 px-5 text-right whitespace-nowrap">
                           <div className="flex justify-end gap-1 font-sans">
-                            <button
-                              id={`penerimaan-tx-btn-${tx.id}`}
-                              onClick={() => setPenerimaanTx(tx)}
-                              className={`inline-flex items-center justify-center w-7 h-7 rounded-lg border shadow-sm transition cursor-pointer ${tx.usePenerimaan
-                                  ? "border-emerald-200 bg-emerald-100 text-emerald-800"
-                                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                                }`}
-                              title={tx.usePenerimaan ? "Hitung Susut: Ya" : "Atur Penerimaan & Hitung Susut"}
-                            >
-                              <Scale className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              id={`reprint-receipt-btn-${tx.id}`}
-                              onClick={() => setReprintTx(tx)}
-                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 shadow-sm transition cursor-pointer"
-                              title="Cetak Ulang Struk"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              id={`edit-tx-btn-${tx.id}`}
-                              onClick={() => setEditTx(tx)}
-                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm transition cursor-pointer"
-                              title="Edit Transaksi"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              id={`delete-tx-btn-${tx.id}`}
-                              onClick={() => setConfirmDeleteTx(tx)}
-                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 shadow-sm transition cursor-pointer"
-                              title="Hapus Transaksi"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {tx.isDeleted ? (
+                              <button
+                                onClick={() => handleRestoreTx(tx.id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-black rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm transition cursor-pointer"
+                                title="Pulihkan Transaksi"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" /> Pulihkan
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  id={`penerimaan-tx-btn-${tx.id}`}
+                                  onClick={() => setPenerimaanTx(tx)}
+                                  className={`inline-flex items-center justify-center w-7 h-7 rounded-lg border shadow-sm transition cursor-pointer ${tx.usePenerimaan
+                                      ? "border-emerald-200 bg-emerald-100 text-emerald-800"
+                                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                    }`}
+                                  title={tx.usePenerimaan ? "Hitung Susut: Ya" : "Atur Penerimaan & Hitung Susut"}
+                                >
+                                  <Scale className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  id={`reprint-receipt-btn-${tx.id}`}
+                                  onClick={() => setReprintTx(tx)}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 shadow-sm transition cursor-pointer"
+                                  title="Cetak Ulang Struk"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  id={`edit-tx-btn-${tx.id}`}
+                                  onClick={() => setEditTx(tx)}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 shadow-sm transition cursor-pointer"
+                                  title="Edit Transaksi"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  id={`delete-tx-btn-${tx.id}`}
+                                  onClick={() => setConfirmDeleteTx(tx)}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 shadow-sm transition cursor-pointer"
+                                  title="Hapus Transaksi"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
