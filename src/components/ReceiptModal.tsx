@@ -459,7 +459,7 @@ export default function ReceiptModal({
     txt += `------------------------------------------------\n`;
     txt += `TOTAL     : ${formatRupiah(transaction.totalAmount).padStart(34)}\n`;
     txt += `METODE    : ${transaction.paymentMethod.toUpperCase().padStart(34)}\n`;
-    if (transaction.paymentMethod === "mix") {
+    if (transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) {
       txt += ` - CASH   : ${formatRupiah(transaction.cashAmount || 0).padStart(34)}\n`;
       txt += ` - TRSF   : ${formatRupiah(transaction.transferAmount || 0).padStart(34)}\n`;
     }
@@ -640,7 +640,7 @@ export default function ReceiptModal({
     );
     y += 4.5;
 
-    if (transaction.paymentMethod === "mix") {
+    if (transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) {
       doc.text(" - Cash:", 6, y);
       doc.text(formatRupiah(transaction.cashAmount || 0), 74, y, { align: "right" });
       y += 4.5;
@@ -875,7 +875,7 @@ export default function ReceiptModal({
                         : transaction.paymentMethod}
                   </span>
                 </div>
-                {transaction.paymentMethod === "mix" && (
+                {(transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) && (
                   <>
                     <div className="flex justify-between text-slate-500 pl-4">
                       <span>- Cash :</span>

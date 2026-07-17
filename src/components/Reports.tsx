@@ -312,8 +312,8 @@ export default function Reports() {
       "Tanggal",
       "Nama Pelanggan",
       "Total Belanja (Rp)",
-      "Tunai (Trf) (Rp)",
-      "Cash (Rp)",
+      "Transfer (Rp)",
+      "Cash / Tunai (Rp)",
       "Utang (Rp)",
       "Jumlah Cetak",
       "Catatan",
@@ -745,10 +745,10 @@ export default function Reports() {
                       Total Belanja
                     </th>
                     <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-right text-indigo-700">
-                      Tunai (Trf)
+                      Transfer
                     </th>
                     <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-right text-emerald-700">
-                      Cash
+                      Cash / Tunai
                     </th>
                     <th className="py-4 px-5 font-bold uppercase tracking-wider text-[10px] text-right text-red-600">
                       Utang

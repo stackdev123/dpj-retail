@@ -217,6 +217,15 @@ export const db = {
         }
       }
 
+      if (notes && notes.includes("[DEBT_PAYMENT:")) {
+        const match = notes.match(/\[DEBT_PAYMENT:cash=(\d+);transfer=(\d+)\]/);
+        if (match) {
+          cashAmount = Number(match[1]);
+          transferAmount = Number(match[2]);
+          notes = notes.replace(/\[DEBT_PAYMENT:[^\]]+\]\s*/, "").trim();
+        }
+      }
+
       return {
         id: tx.id,
         invoiceNumber: tx.invoice_number,
@@ -255,6 +264,8 @@ export const db = {
     if (transaction.paymentMethod === "mix") {
       dbPaymentMethod = "cash";
       notes = `[MIX_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
+    } else if (transaction.paymentMethod === "debt") {
+      notes = `[DEBT_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
     }
 
     const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
@@ -1149,6 +1160,8 @@ export const db = {
     if (transaction.paymentMethod === "mix") {
       dbPaymentMethod = "cash";
       notes = `[MIX_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
+    } else if (transaction.paymentMethod === "debt") {
+      notes = `[DEBT_PAYMENT:cash=${transaction.cashAmount || 0};transfer=${transaction.transferAmount || 0}]${notes ? " " + notes : ""}`;
     }
 
     const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
