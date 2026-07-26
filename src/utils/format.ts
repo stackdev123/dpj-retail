@@ -48,11 +48,11 @@ export function formatDate(dateString: string, includeTime = true): string {
 /**
  * Helper to generate Invoice Number (e.g. DPU-260626-0001)
  */
-export function generateInvoiceNumber(existingCount: number = 0): string {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
+export function generateInvoiceNumber(existingCount: number = 0, customDate?: Date): string {
+  const dateObj = customDate || new Date();
+  const yy = String(dateObj.getFullYear()).slice(-2);
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dateObj.getDate()).padStart(2, '0');
 
   const datePart = `${yy}${mm}${dd}`;
   const seqPart = String(existingCount + 1).padStart(4, '0');

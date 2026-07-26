@@ -517,7 +517,7 @@ export default function ReceiptModal({
     txt += `------------------------------------------------\n`;
     txt += `TOTAL     : ${formatRupiah(transaction.totalAmount).padStart(34)}\n`;
     txt += `METODE    : ${transaction.paymentMethod.toUpperCase().padStart(34)}\n`;
-    if (transaction.paymentMethod === "mix") {
+    if (transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) {
       txt += ` - CASH   : ${formatRupiah(transaction.cashAmount || 0).padStart(34)}\n`;
       txt += ` - TRSF   : ${formatRupiah(transaction.transferAmount || 0).padStart(34)}\n`;
     }
@@ -552,6 +552,7 @@ export default function ReceiptModal({
   const handleDownloadJPG = async () => {
     if (!receiptRef.current) return;
 
+<<<<<<< HEAD
     try {
       const element = receiptRef.current;
       const imgCanvas = await html2canvas(element, {
@@ -566,6 +567,18 @@ export default function ReceiptModal({
               styleEl.textContent = sanitizeOklch(styleEl.textContent);
             }
           });
+=======
+    // Calculate dynamic page height in mm based on content length
+    let pageHeight = 120; // baseline height
+    if (isDuplicate) pageHeight += 15;
+    if (transaction.notes && transaction.notes.trim()) pageHeight += 5;
+    pageHeight += transaction.items.length * 8.5; // Each item takes about 8.5mm
+    if (transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) {
+      pageHeight += 8;
+    }
+    if (previousDebt > 0) pageHeight += 8;
+    if (totalCustomerDebt > 0) pageHeight += 8;
+>>>>>>> 89c0dd599a230f43c5bd2cb206122ef9773777a5
 
           const elementsWithStyle = clonedDoc.querySelectorAll<HTMLElement>("[style]");
           elementsWithStyle.forEach((el) => {
@@ -577,6 +590,7 @@ export default function ReceiptModal({
         },
       });
 
+<<<<<<< HEAD
       // Tambahkan margin/padding 0.1mm di kiri, kanan, dan bawah (kebawah)
       const scale = 3;
       const mmInPx = (96 / 25.4) * scale;
@@ -602,6 +616,300 @@ export default function ReceiptModal({
     } catch (err) {
       console.error("Gagal mengunduh JPG:", err);
     }
+=======
+    let y = 8;
+
+    // 1. DUPLICATE BANNER (classic thermal printout style)
+    if (isDuplicate) {
+      doc.setFont("Courier", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("*********************************", 40, y, { align: "center" });
+      y += 4;
+      doc.text("***       D U P L I K A T     ***", 40, y, { align: "center" });
+      y += 4;
+      doc.text("*********************************", 40, y, { align: "center" });
+      y += 6;
+    }
+
+    // 2. BUSINESS HEADER
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text("CV DPJ BERKAH UNGGAS", 40, y, { align: "center" });
+    y += 5;
+
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan", 40, y, { align: "center" });
+    y += 3.5;
+    doc.text("Kec. Bojong Kab. Purwakarta", 40, y, { align: "center" });
+    y += 3.5;
+    doc.text("Telp/Hp. +62 818-0734-9347", 40, y, { align: "center" });
+    y += 5;
+
+    // Divider
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text("------------------------------------------", 40, y, { align: "center" });
+    y += 4.5;
+
+    // 3. METADATA
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(8.5);
+
+    // No. Nota
+    doc.setTextColor(148, 163, 184); // Label
+    doc.text("No. Nota:", 6, y);
+    doc.setTextColor(15, 23, 42); // Value
+    doc.text(transaction.invoiceNumber, 74, y, { align: "right" });
+    y += 4;
+
+    // Tanggal
+    doc.setTextColor(148, 163, 184); // Label
+    doc.text("Tanggal :", 6, y);
+    doc.setTextColor(15, 23, 42); // Value
+    doc.text(formatDate(transaction.date), 74, y, { align: "right" });
+    y += 4;
+
+    // Pelanggan
+    doc.setTextColor(148, 163, 184); // Label
+    doc.text("Pelanggan:", 6, y);
+    doc.setTextColor(15, 23, 42); // Value
+    doc.text(transaction.customerName, 74, y, { align: "right" });
+    y += 4;
+
+    // Catatan
+    if (transaction.notes && transaction.notes.trim()) {
+      doc.setTextColor(148, 163, 184); // Label
+      doc.text("Catatan  :", 6, y);
+      doc.setTextColor(15, 23, 42); // Value
+      doc.text(transaction.notes.trim(), 74, y, { align: "right" });
+      y += 4;
+    }
+
+    y += 0.5;
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text("------------------------------------------", 40, y, { align: "center" });
+    y += 4.5;
+
+    // 4. ITEMS TABLE HEADER
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Item / Deskripsi", 6, y);
+    doc.text("Subtotal", 74, y, { align: "right" });
+    y += 4;
+
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(9);
+    doc.text("------------------------------------------", 40, y, { align: "center" });
+    y += 4.5;
+
+    // 5. ITEMS ROWS
+    transaction.items.forEach((item) => {
+      // Item Name
+      doc.setFont("Courier", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(item.name, 6, y);
+
+      // Subtotal on the same line
+      doc.text(formatRupiah(item.subtotal), 74, y, { align: "right" });
+      y += 4;
+
+      // Item Qty details (matching exact styling of green & gray)
+      doc.setFont("Courier", "normal");
+      doc.setFontSize(8);
+      if (transaction.usePenerimaan) {
+        const qtyTerima =
+          item.receivedQuantity !== undefined && item.receivedQuantity !== null
+            ? item.receivedQuantity
+            : item.quantity;
+
+        doc.setTextColor(15, 118, 110); // emerald-700
+        const greenPart = `Trm: ${qtyTerima} ${item.unit}`;
+        doc.text(greenPart, 8, y);
+        const greenWidth = doc.getTextWidth(greenPart);
+
+        doc.setTextColor(148, 163, 184); // slate-400
+        doc.text(` x ${formatRupiah(item.price)} (Krm: ${item.quantity})`, 8 + greenWidth, y);
+      } else {
+        doc.setTextColor(148, 163, 184); // slate-400
+        doc.text(
+          `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
+          8,
+          y
+        );
+      }
+      y += 4.5;
+    });
+
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text("------------------------------------------", 40, y, { align: "center" });
+    y += 4.5;
+
+    // 6. TOTALS
+    // TOTAL BELANJA
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text("TOTAL BELANJA:", 6, y);
+    doc.text(formatRupiah(transaction.totalAmount), 74, y, { align: "right" });
+    y += 4.5;
+
+    // Metode Pembayaran
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Metode Pembayaran:", 6, y);
+
+    doc.setFont("Courier", "bold");
+    doc.setTextColor(15, 23, 42);
+    const payMethodName = transaction.paymentMethod === "debt"
+      ? "Utang"
+      : transaction.paymentMethod === "mix"
+        ? "Campuran (Mix)"
+        : transaction.paymentMethod.toUpperCase();
+    doc.text(payMethodName, 74, y, { align: "right" });
+    y += 4;
+
+    // Mix/Debt Details
+    if (transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) {
+      doc.setFont("Courier", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+
+      doc.text(" - Cash :", 8, y);
+      doc.setTextColor(15, 23, 42);
+      doc.text(formatRupiah(transaction.cashAmount || 0), 74, y, { align: "right" });
+      y += 4;
+
+      doc.setTextColor(100, 116, 139);
+      doc.text(" - Transfer:", 8, y);
+      doc.setTextColor(15, 23, 42);
+      doc.text(formatRupiah(transaction.transferAmount || 0), 74, y, { align: "right" });
+      y += 4;
+    }
+
+    // Jumlah Dibayar
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Jumlah Dibayar:", 6, y);
+
+    doc.setFont("Courier", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(formatRupiah(transaction.amountPaid), 74, y, { align: "right" });
+    y += 4.5;
+
+    // Utang Sebelumnya
+    if (previousDebt > 0) {
+      doc.setFont("Courier", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.text("------------------------------------------", 40, y, { align: "center" });
+      y += 4;
+
+      doc.setFont("Courier", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text("Utang Sebelumnya:", 6, y);
+      doc.text(formatRupiah(previousDebt), 74, y, { align: "right" });
+      y += 4;
+    }
+
+    // Total Utang
+    if (totalCustomerDebt > 0) {
+      doc.setFont("Courier", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.text("------------------------------------------", 40, y, { align: "center" });
+      y += 4;
+
+      doc.setFont("Courier", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text("Total Utang:", 6, y);
+      doc.text(formatRupiah(totalCustomerDebt), 74, y, { align: "right" });
+      y += 4;
+    }
+
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text("------------------------------------------", 40, y, { align: "center" });
+    y += 5;
+
+    // 7. BANK ACCOUNTS
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text("INFO REKENING PEMBAYARAN", 40, y, { align: "center" });
+    y += 3.5;
+
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text("(A/N Panji Paranantias Mulyono)", 40, y, { align: "center" });
+    y += 4;
+
+    // BCA
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    doc.text("BCA:", 10, y);
+    doc.setFont("Courier", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("7410888879", 70, y, { align: "right" });
+    y += 3.5;
+
+    // BRI
+    doc.setFont("Courier", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("BRI:", 10, y);
+    doc.setFont("Courier", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("007501001986565", 70, y, { align: "right" });
+    y += 3.5;
+
+    // MANDIRI
+    doc.setFont("Courier", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("MANDIRI:", 10, y);
+    doc.setFont("Courier", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("173008118881", 70, y, { align: "right" });
+    y += 4.5;
+
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text("------------------------------------------", 40, y, { align: "center" });
+    y += 4.5;
+
+    // 8. FOOTER GREETING
+    doc.setFont("Courier", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Terima Kasih Atas Kunjungan Anda", 40, y, { align: "center" });
+    y += 3.5;
+
+    doc.text("Barang yang sudah dibeli tidak dapat ditukar/dikembalikan", 40, y, { align: "center" });
+    y += 4;
+
+    doc.setFont("Courier", "normal");
+    doc.setFontSize(6.5);
+    doc.text("Sistem Kasir v1.0 • CV DPJ Berkah Unggas", 40, y, { align: "center" });
+
+    doc.save(`Struk_${transaction.invoiceNumber}.pdf`);
+>>>>>>> 89c0dd599a230f43c5bd2cb206122ef9773777a5
   };
 
   const isDuplicate = currentPrintCount >= 1;
@@ -763,7 +1071,7 @@ export default function ReceiptModal({
                         : transaction.paymentMethod}
                   </span>
                 </div>
-                {transaction.paymentMethod === "mix" && (
+                {(transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) && (
                   <>
                     <div className="flex justify-between text-slate-500 pl-4">
                       <span>- Cash :</span>

@@ -41,6 +41,7 @@ export interface Transaction {
   cashAmount?: number;
   transferAmount?: number;
   usePenerimaan?: boolean;
+  isDeleted?: boolean;
 }
 
 export interface DebtPayment {

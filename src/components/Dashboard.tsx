@@ -43,8 +43,13 @@ export default function Dashboard() {
       db.getDebtPayments(),
       db.getCustomers(),
     ]);
-    setTransactions(txs);
-    setDebtPayments(payments);
+    const activeTxs = txs.filter((tx) => !tx.isDeleted);
+    const activePayments = payments.filter((dp) => {
+      const parentTx = txs.find((t) => t.id === dp.transactionId);
+      return !parentTx || !parentTx.isDeleted;
+    });
+    setTransactions(activeTxs);
+    setDebtPayments(activePayments);
     setCustomers(custs);
   };
 
@@ -143,7 +148,12 @@ export default function Dashboard() {
     } else if (tx.paymentMethod === "transfer") {
       todayTransfer += tx.totalAmount;
     } else if (tx.paymentMethod === "debt") {
-      todayCash += tx.amountPaid;
+      if (tx.cashAmount !== undefined || tx.transferAmount !== undefined) {
+        todayCash += tx.cashAmount || 0;
+        todayTransfer += tx.transferAmount || 0;
+      } else {
+        todayCash += tx.amountPaid;
+      }
       todayDebt += tx.remainingDebt;
     } else if (tx.paymentMethod === "mix") {
       todayCash += tx.cashAmount || 0;
@@ -167,7 +177,12 @@ export default function Dashboard() {
     } else if (tx.paymentMethod === "transfer") {
       filteredTransfer += tx.totalAmount;
     } else if (tx.paymentMethod === "debt") {
-      filteredCash += tx.amountPaid;
+      if (tx.cashAmount !== undefined || tx.transferAmount !== undefined) {
+        filteredCash += tx.cashAmount || 0;
+        filteredTransfer += tx.transferAmount || 0;
+      } else {
+        filteredCash += tx.amountPaid;
+      }
       filteredDebt += tx.remainingDebt;
     } else if (tx.paymentMethod === "mix") {
       filteredCash += tx.cashAmount || 0;
@@ -186,7 +201,12 @@ export default function Dashboard() {
     } else if (tx.paymentMethod === "transfer") {
       periodTransferReceived += tx.amountPaid;
     } else if (tx.paymentMethod === "debt") {
-      periodCashReceived += tx.amountPaid;
+      if (tx.cashAmount !== undefined || tx.transferAmount !== undefined) {
+        periodCashReceived += tx.cashAmount || 0;
+        periodTransferReceived += tx.transferAmount || 0;
+      } else {
+        periodCashReceived += tx.amountPaid;
+      }
     } else if (tx.paymentMethod === "mix") {
       periodCashReceived += tx.cashAmount || 0;
       periodTransferReceived += tx.transferAmount || 0;
