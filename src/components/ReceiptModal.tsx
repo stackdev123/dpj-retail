@@ -3,7 +3,7 @@ import { Transaction } from "../types";
 import { formatRupiah, formatDate, downloadFile } from "../utils/format";
 import { db } from "../utils/db";
 import { Printer, Download, X, CopyCheck, FileText, Usb, CheckCircle2, AlertCircle, Bluetooth } from "lucide-react";
-import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import {
   isWebUSBSupported,
   isBluetoothSupported,
@@ -20,6 +20,64 @@ interface ReceiptModalProps {
   transaction: Transaction;
   onClose: () => void;
   onPrintSuccess?: () => void;
+}
+
+function sanitizeOklch(cssText: string): string {
+  let result = cssText.replace(
+    /oklch\(\s*([\d.%]+)[\s,]+([\d.%]+)[\s,]+([\d.%]+)(?:[\s,/]+([\d.%]+))?\s*\)/gi,
+    (match, p1, p2, p3, p4) => {
+      try {
+        let l = p1.endsWith("%") ? parseFloat(p1) / 100 : parseFloat(p1);
+        let c = p2.endsWith("%") ? (parseFloat(p2) / 100) * 0.4 : parseFloat(p2);
+        let h = parseFloat(p3);
+        let alpha = p4 !== undefined ? (p4.endsWith("%") ? parseFloat(p4) / 100 : parseFloat(p4)) : 1;
+
+        if (isNaN(l)) l = 0;
+        if (isNaN(c)) c = 0;
+        if (isNaN(h)) h = 0;
+
+        const hRad = (h * Math.PI) / 180;
+        const a = c * Math.cos(hRad);
+        const b = c * Math.sin(hRad);
+
+        const l_ = l + 0.3963377774 * a + 0.2158037573 * b;
+        const m_ = l - 0.1055613458 * a - 0.0638541728 * b;
+        const s_ = l - 0.0894841775 * a - 0.1291980313 * b;
+
+        const l3 = l_ * l_ * l_;
+        const m3 = m_ * m_ * m_;
+        const s3 = s_ * s_ * s_;
+
+        let rLin = +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
+        let gLin = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
+        let bLin = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3;
+
+        const toSrgb = (val: number) => {
+          if (val <= 0) return 0;
+          if (val >= 1) return 255;
+          return Math.round(
+            (val <= 0.0031308 ? 12.92 * val : 1.055 * Math.pow(val, 1 / 2.4) - 0.055) * 255
+          );
+        };
+
+        const r = toSrgb(rLin);
+        const g = toSrgb(gLin);
+        const bComp = toSrgb(bLin);
+
+        if (alpha < 1) {
+          return `rgba(${r}, ${g}, ${bComp}, ${alpha})`;
+        }
+        return `rgb(${r}, ${g}, ${bComp})`;
+      } catch {
+        return "rgb(0,0,0)";
+      }
+    }
+  );
+
+  if (result.includes("oklch")) {
+    result = result.replace(/oklch\([^)]+\)/gi, "rgb(0,0,0)");
+  }
+  return result;
 }
 
 export default function ReceiptModal({
@@ -491,229 +549,59 @@ export default function ReceiptModal({
     downloadFile(txt, `Struk_${transaction.invoiceNumber}.txt`, "text/plain");
   };
 
-  const handleDownloadPDF = () => {
-    const isDuplicate = currentPrintCount >= 1;
-    const previousDebt =
-      totalCustomerDebt -
-      (transaction.paymentMethod === "debt" ? transaction.remainingDebt : 0);
+  const handleDownloadJPG = async () => {
+    if (!receiptRef.current) return;
 
-    // Calculate dynamic page height in mm based on content length
-    let pageHeight = 155; // baseline height
-    pageHeight += transaction.items.length * 10; // add space for each item (name + details)
-    if (isDuplicate) pageHeight += 12;
-    if (previousDebt > 0) pageHeight += 5;
-    if (totalCustomerDebt > 0) pageHeight += 5;
-    if (transaction.notes && transaction.notes.trim()) pageHeight += 5;
+    try {
+      const element = receiptRef.current;
+      const imgCanvas = await html2canvas(element, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        onclone: (clonedDoc) => {
+          const styleElements = clonedDoc.querySelectorAll("style");
+          styleElements.forEach((styleEl) => {
+            if (styleEl.textContent && styleEl.textContent.includes("oklch")) {
+              styleEl.textContent = sanitizeOklch(styleEl.textContent);
+            }
+          });
 
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: [80, pageHeight],
-    });
+          const elementsWithStyle = clonedDoc.querySelectorAll<HTMLElement>("[style]");
+          elementsWithStyle.forEach((el) => {
+            const styleAttr = el.getAttribute("style");
+            if (styleAttr && styleAttr.includes("oklch")) {
+              el.setAttribute("style", sanitizeOklch(styleAttr));
+            }
+          });
+        },
+      });
 
-    // We use Courier standard font for exact thermal printer style
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
+      // Tambahkan margin/padding 0.1mm di kiri, kanan, dan bawah (kebawah)
+      const scale = 3;
+      const mmInPx = (96 / 25.4) * scale;
+      const padLR = Math.ceil(1 * mmInPx);
+      const padBottom = Math.ceil(1 * mmInPx);
 
-    let y = 8;
+      const finalCanvas = document.createElement("canvas");
+      finalCanvas.width = imgCanvas.width + padLR * 2;
+      finalCanvas.height = imgCanvas.height + padBottom;
 
-    // 1. DUPLICATE BANNER
-    if (isDuplicate) {
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(0.3);
-      doc.rect(6, y, 68, 10);
-      doc.setFont("Courier", "bold");
-      doc.setFontSize(10);
-      doc.text("*** DUPLIKAT ***", 40, y + 6, { align: "center" });
-      y += 15;
-    }
-
-    // 2. HEADER
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(11);
-    doc.text("CV DPJ BERKAH UNGGAS", 40, y, { align: "center" });
-    y += 5;
-
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(7.5);
-    doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan", 40, y, { align: "center" });
-    y += 4;
-    doc.text("Kec. Bojong Kab. Purwakarta", 40, y, { align: "center" });
-    y += 4;
-    doc.text("Telp/Hp. +62 818-0734-9347", 40, y, { align: "center" });
-    y += 5;
-
-    // Dashed divider
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.2);
-    doc.text("------------------------------------------------", 40, y, { align: "center" });
-    y += 5;
-
-    // 3. METADATA
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(8.5);
-
-    doc.text("No. Nota:", 6, y);
-    doc.text(transaction.invoiceNumber, 74, y, { align: "right" });
-    y += 4.5;
-
-    doc.text("Tanggal :", 6, y);
-    doc.text(formatDate(transaction.date), 74, y, { align: "right" });
-    y += 4.5;
-
-    doc.text("Pelanggan:", 6, y);
-    doc.text(transaction.customerName, 74, y, { align: "right" });
-    y += 4.5;
-
-    if (transaction.notes && transaction.notes.trim()) {
-      doc.text("Catatan  :", 6, y);
-      doc.text(transaction.notes.trim(), 74, y, { align: "right" });
-      y += 4.5;
-    }
-    y += 0.5;
-
-    // Dashed divider
-    doc.text("------------------------------------------------", 40, y, { align: "center" });
-    y += 5;
-
-    // 4. ITEMS TABLE HEADER
-    doc.setFont("Courier", "bold");
-    doc.text("Item / Deskripsi", 6, y);
-    doc.text("Subtotal", 74, y, { align: "right" });
-    y += 4;
-    doc.text("------------------------------------------------", 40, y, { align: "center" });
-    y += 5;
-
-    // 5. ITEMS ROWS
-    doc.setFont("Courier", "normal");
-    transaction.items.forEach((item) => {
-      // Item Name
-      doc.setFont("Courier", "bold");
-      doc.text(item.name, 6, y);
-
-      // Subtotal on the same line
-      doc.text(formatRupiah(item.subtotal), 74, y, { align: "right" });
-      y += 4.5;
-
-      // Item Qty x Price
-      doc.setFont("Courier", "normal");
-      if (transaction.usePenerimaan) {
-        const qtyTerima =
-          item.receivedQuantity !== undefined && item.receivedQuantity !== null
-            ? item.receivedQuantity
-            : item.quantity;
-        let textLine = `Trm: ${qtyTerima} ${item.unit} x ${formatRupiah(item.price)} (Krm: ${item.quantity})`;
-        doc.text(textLine, 8, y);
-      } else {
-        doc.text(
-          `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
-          8,
-          y
-        );
+      const ctx = finalCanvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+        ctx.drawImage(imgCanvas, padLR, 0);
       }
-      y += 5;
-    });
 
-    // Dashed divider
-    doc.setFont("Courier", "bold");
-    doc.text("------------------------------------------------", 40, y, { align: "center" });
-    y += 5;
-
-    // 6. TOTALS
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(9);
-    doc.text("TOTAL BELANJA:", 6, y);
-    doc.text(formatRupiah(transaction.totalAmount), 74, y, { align: "right" });
-    y += 5;
-
-    doc.setFontSize(8.5);
-    doc.setFont("Courier", "normal");
-    doc.text("Metode Pembayaran:", 6, y);
-    doc.text(
-      transaction.paymentMethod === "debt"
-        ? "UTANG"
-        : transaction.paymentMethod.toUpperCase(),
-      74,
-      y,
-      { align: "right" }
-    );
-    y += 4.5;
-
-    if (transaction.paymentMethod === "mix") {
-      doc.text(" - Cash:", 6, y);
-      doc.text(formatRupiah(transaction.cashAmount || 0), 74, y, { align: "right" });
-      y += 4.5;
-      doc.text(" - Transfer:", 6, y);
-      doc.text(formatRupiah(transaction.transferAmount || 0), 74, y, { align: "right" });
-      y += 4.5;
+      const imgData = (ctx ? finalCanvas : imgCanvas).toDataURL("image/jpeg", 0.95);
+      const link = document.createElement("a");
+      link.download = `Struk_${transaction.invoiceNumber}.jpg`;
+      link.href = imgData;
+      link.click();
+    } catch (err) {
+      console.error("Gagal mengunduh JPG:", err);
     }
-
-    doc.text("Jumlah Dibayar:", 6, y);
-    doc.text(formatRupiah(transaction.amountPaid), 74, y, { align: "right" });
-    y += 4.5;
-
-    if (previousDebt > 0) {
-      doc.setFont("Courier", "bold");
-      doc.text("Utang Sebelumnya:", 6, y);
-      doc.text(formatRupiah(previousDebt), 74, y, { align: "right" });
-      y += 4.5;
-    }
-
-    if (totalCustomerDebt > 0) {
-      doc.setFont("Courier", "bold");
-      doc.text("Total Semua Utang:", 6, y);
-      doc.text(formatRupiah(totalCustomerDebt), 74, y, { align: "right" });
-      y += 5;
-    }
-
-    // Dashed divider
-    doc.setFont("Courier", "bold");
-    doc.text("------------------------------------------------", 40, y, { align: "center" });
-    y += 5;
-
-    // 7. BANK ACCOUNTS
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(7.5);
-    doc.text("INFO REKENING PEMBAYARAN", 40, y, { align: "center" });
-    y += 3.5;
-    doc.setFont("Courier", "normal");
-    doc.text("(A/N Panji Paranantias Mulyono)", 40, y, { align: "center" });
-    y += 4.5;
-
-    doc.text("BCA:", 10, y);
-    doc.setFont("Courier", "bold");
-    doc.text("7410888879", 70, y, { align: "right" });
-    y += 4;
-
-    doc.setFont("Courier", "normal");
-    doc.text("BRI:", 10, y);
-    doc.setFont("Courier", "bold");
-    doc.text("007501001986565", 70, y, { align: "right" });
-    y += 4;
-
-    doc.setFont("Courier", "normal");
-    doc.text("MANDIRI:", 10, y);
-    doc.setFont("Courier", "bold");
-    doc.text("173008118881", 70, y, { align: "right" });
-    y += 5.5;
-
-    // Dashed divider
-    doc.text("------------------------------------------------", 40, y, { align: "center" });
-    y += 5;
-
-    // 8. FOOTER
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(8);
-    doc.text("Terima Kasih Atas Kunjungan Anda", 40, y, { align: "center" });
-    y += 4;
-    doc.setFontSize(7);
-    doc.text("Barang yang sudah dibeli tidak dapat ditukar/dikembalikan", 40, y, { align: "center" });
-    y += 4.5;
-    doc.setFontSize(6.5);
-    doc.text("Sistem Kasir CV DPJ Berkah Unggas", 40, y, { align: "center" });
-
-    doc.save(`Struk_${transaction.invoiceNumber}.pdf`);
   };
 
   const isDuplicate = currentPrintCount >= 1;
@@ -1053,11 +941,11 @@ export default function ReceiptModal({
 
             <div className="grid grid-cols-2 gap-2">
               <button
-                id="download-receipt-pdf-btn"
-                onClick={handleDownloadPDF}
+                id="download-receipt-jpg-btn"
+                onClick={handleDownloadJPG}
                 className="flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 hover:bg-red-50 text-red-700 font-bold text-xs py-2.5 px-3 shadow-sm transition-all duration-200 cursor-pointer"
               >
-                <FileText className="w-3.5 h-3.5" /> Download PDF
+                <FileText className="w-3.5 h-3.5" /> Download JPG
               </button>
 
               <button
