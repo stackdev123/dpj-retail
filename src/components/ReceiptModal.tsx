@@ -22,62 +22,64 @@ interface ReceiptModalProps {
   onPrintSuccess?: () => void;
 }
 
-function sanitizeOklch(cssText: string): string {
-  let result = cssText.replace(
-    /oklch\(\s*([\d.%]+)[\s,]+([\d.%]+)[\s,]+([\d.%]+)(?:[\s,/]+([\d.%]+))?\s*\)/gi,
-    (match, p1, p2, p3, p4) => {
-      try {
-        let l = p1.endsWith("%") ? parseFloat(p1) / 100 : parseFloat(p1);
-        let c = p2.endsWith("%") ? (parseFloat(p2) / 100) * 0.4 : parseFloat(p2);
-        let h = parseFloat(p3);
-        let alpha = p4 !== undefined ? (p4.endsWith("%") ? parseFloat(p4) / 100 : parseFloat(p4)) : 1;
+function oklchToRgb(l: number, c: number, h: number, alpha?: number): string {
+  const hRad = (h * Math.PI) / 180;
+  const aLab = c * Math.cos(hRad);
+  const bLab = c * Math.sin(hRad);
 
-        if (isNaN(l)) l = 0;
-        if (isNaN(c)) c = 0;
-        if (isNaN(h)) h = 0;
+  const l_ = l + 0.3963377774 * aLab + 0.2158037573 * bLab;
+  const m_ = l - 0.1055613458 * aLab - 0.0638541728 * bLab;
+  const s_ = l - 0.0894841775 * aLab - 0.1291980313 * bLab;
 
-        const hRad = (h * Math.PI) / 180;
-        const a = c * Math.cos(hRad);
-        const b = c * Math.sin(hRad);
+  const l3 = l_ * l_ * l_;
+  const m3 = m_ * m_ * m_;
+  const s3 = s_ * s_ * s_;
 
-        const l_ = l + 0.3963377774 * a + 0.2158037573 * b;
-        const m_ = l - 0.1055613458 * a - 0.0638541728 * b;
-        const s_ = l - 0.0894841775 * a - 0.1291980313 * b;
+  let rLin = +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
+  let gLin = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
+  let bLin = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3;
 
-        const l3 = l_ * l_ * l_;
-        const m3 = m_ * m_ * m_;
-        const s3 = s_ * s_ * s_;
+  const toSrgb = (val: number) => {
+    if (val <= 0) return 0;
+    if (val >= 1) return 255;
+    return Math.round(
+      (val <= 0.0031308 ? 12.92 * val : 1.055 * Math.pow(val, 1 / 2.4) - 0.055) * 255
+    );
+  };
 
-        let rLin = +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
-        let gLin = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
-        let bLin = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3;
+  const r = toSrgb(rLin);
+  const g = toSrgb(gLin);
+  const b = toSrgb(bLin);
 
-        const toSrgb = (val: number) => {
-          if (val <= 0) return 0;
-          if (val >= 1) return 255;
-          return Math.round(
-            (val <= 0.0031308 ? 12.92 * val : 1.055 * Math.pow(val, 1 / 2.4) - 0.055) * 255
-          );
-        };
-
-        const r = toSrgb(rLin);
-        const g = toSrgb(gLin);
-        const bComp = toSrgb(bLin);
-
-        if (alpha < 1) {
-          return `rgba(${r}, ${g}, ${bComp}, ${alpha})`;
-        }
-        return `rgb(${r}, ${g}, ${bComp})`;
-      } catch {
-        return "rgb(0,0,0)";
-      }
-    }
-  );
-
-  if (result.includes("oklch")) {
-    result = result.replace(/oklch\([^)]+\)/gi, "rgb(0,0,0)");
+  if (alpha !== undefined && alpha < 1) {
+    return `rgba(${r}, ${g}, ${b}, ${Number(alpha.toFixed(3))})`;
   }
-  return result;
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function sanitizeOklch(cssText: string): string {
+  return cssText.replace(/oklch\(([^)]+)\)/gi, (match, inner) => {
+    try {
+      const parts = inner.trim().split(/[\s,/]+/);
+      if (parts.length >= 3) {
+        const l = parts[0].endsWith("%") ? parseFloat(parts[0]) / 100 : parseFloat(parts[0]);
+        const c = parts[1].endsWith("%") ? (parseFloat(parts[1]) / 100) * 0.4 : parseFloat(parts[1]);
+        const h = parseFloat(parts[2]);
+        const alpha = parts[3]
+          ? parts[3].endsWith("%")
+            ? parseFloat(parts[3]) / 100
+            : parseFloat(parts[3])
+          : undefined;
+
+        if (!isNaN(l) && !isNaN(c) && !isNaN(h)) {
+          return oklchToRgb(l, c, h, alpha);
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return "rgb(0,0,0)";
+  });
 }
 
 export default function ReceiptModal({
@@ -93,6 +95,7 @@ export default function ReceiptModal({
   const [printerError, setPrinterError] = useState<string | null>(null);
   const [isPrintingDirect, setIsPrintingDirect] = useState<boolean>(false);
   const [showUsbSettings, setShowUsbSettings] = useState<boolean>(true);
+  const [isDownloadingJPG, setIsDownloadingJPG] = useState<boolean>(false);
   const receiptRef = useRef<HTMLDivElement>(null);
   const isIframe = typeof window !== "undefined" && window.self !== window.top;
 
@@ -517,7 +520,7 @@ export default function ReceiptModal({
     txt += `------------------------------------------------\n`;
     txt += `TOTAL     : ${formatRupiah(transaction.totalAmount).padStart(34)}\n`;
     txt += `METODE    : ${transaction.paymentMethod.toUpperCase().padStart(34)}\n`;
-    if (transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) {
+    if (transaction.paymentMethod === "mix") {
       txt += ` - CASH   : ${formatRupiah(transaction.cashAmount || 0).padStart(34)}\n`;
       txt += ` - TRSF   : ${formatRupiah(transaction.transferAmount || 0).padStart(34)}\n`;
     }
@@ -550,9 +553,12 @@ export default function ReceiptModal({
   };
 
   const handleDownloadJPG = async () => {
-    if (!receiptRef.current) return;
+    if (!receiptRef.current || isDownloadingJPG) return;
+    setIsDownloadingJPG(true);
 
-<<<<<<< HEAD
+    // Give browser time to update UI button state
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     try {
       const element = receiptRef.current;
       const imgCanvas = await html2canvas(element, {
@@ -567,18 +573,6 @@ export default function ReceiptModal({
               styleEl.textContent = sanitizeOklch(styleEl.textContent);
             }
           });
-=======
-    // Calculate dynamic page height in mm based on content length
-    let pageHeight = 120; // baseline height
-    if (isDuplicate) pageHeight += 15;
-    if (transaction.notes && transaction.notes.trim()) pageHeight += 5;
-    pageHeight += transaction.items.length * 8.5; // Each item takes about 8.5mm
-    if (transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) {
-      pageHeight += 8;
-    }
-    if (previousDebt > 0) pageHeight += 8;
-    if (totalCustomerDebt > 0) pageHeight += 8;
->>>>>>> 89c0dd599a230f43c5bd2cb206122ef9773777a5
 
           const elementsWithStyle = clonedDoc.querySelectorAll<HTMLElement>("[style]");
           elementsWithStyle.forEach((el) => {
@@ -590,8 +584,7 @@ export default function ReceiptModal({
         },
       });
 
-<<<<<<< HEAD
-      // Tambahkan margin/padding 0.1mm di kiri, kanan, dan bawah (kebawah)
+      // Tambahkan margin/padding 1mm di kiri, kanan, dan bawah (kebawah)
       const scale = 3;
       const mmInPx = (96 / 25.4) * scale;
       const padLR = Math.ceil(1 * mmInPx);
@@ -615,301 +608,9 @@ export default function ReceiptModal({
       link.click();
     } catch (err) {
       console.error("Gagal mengunduh JPG:", err);
+    } finally {
+      setIsDownloadingJPG(false);
     }
-=======
-    let y = 8;
-
-    // 1. DUPLICATE BANNER (classic thermal printout style)
-    if (isDuplicate) {
-      doc.setFont("Courier", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      doc.text("*********************************", 40, y, { align: "center" });
-      y += 4;
-      doc.text("***       D U P L I K A T     ***", 40, y, { align: "center" });
-      y += 4;
-      doc.text("*********************************", 40, y, { align: "center" });
-      y += 6;
-    }
-
-    // 2. BUSINESS HEADER
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42);
-    doc.text("CV DPJ BERKAH UNGGAS", 40, y, { align: "center" });
-    y += 5;
-
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text("Kp. Pangkalan RT. 010 RW. 004 Desa Pangkalan", 40, y, { align: "center" });
-    y += 3.5;
-    doc.text("Kec. Bojong Kab. Purwakarta", 40, y, { align: "center" });
-    y += 3.5;
-    doc.text("Telp/Hp. +62 818-0734-9347", 40, y, { align: "center" });
-    y += 5;
-
-    // Divider
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(148, 163, 184);
-    doc.text("------------------------------------------", 40, y, { align: "center" });
-    y += 4.5;
-
-    // 3. METADATA
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(8.5);
-
-    // No. Nota
-    doc.setTextColor(148, 163, 184); // Label
-    doc.text("No. Nota:", 6, y);
-    doc.setTextColor(15, 23, 42); // Value
-    doc.text(transaction.invoiceNumber, 74, y, { align: "right" });
-    y += 4;
-
-    // Tanggal
-    doc.setTextColor(148, 163, 184); // Label
-    doc.text("Tanggal :", 6, y);
-    doc.setTextColor(15, 23, 42); // Value
-    doc.text(formatDate(transaction.date), 74, y, { align: "right" });
-    y += 4;
-
-    // Pelanggan
-    doc.setTextColor(148, 163, 184); // Label
-    doc.text("Pelanggan:", 6, y);
-    doc.setTextColor(15, 23, 42); // Value
-    doc.text(transaction.customerName, 74, y, { align: "right" });
-    y += 4;
-
-    // Catatan
-    if (transaction.notes && transaction.notes.trim()) {
-      doc.setTextColor(148, 163, 184); // Label
-      doc.text("Catatan  :", 6, y);
-      doc.setTextColor(15, 23, 42); // Value
-      doc.text(transaction.notes.trim(), 74, y, { align: "right" });
-      y += 4;
-    }
-
-    y += 0.5;
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(148, 163, 184);
-    doc.text("------------------------------------------", 40, y, { align: "center" });
-    y += 4.5;
-
-    // 4. ITEMS TABLE HEADER
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text("Item / Deskripsi", 6, y);
-    doc.text("Subtotal", 74, y, { align: "right" });
-    y += 4;
-
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(9);
-    doc.text("------------------------------------------", 40, y, { align: "center" });
-    y += 4.5;
-
-    // 5. ITEMS ROWS
-    transaction.items.forEach((item) => {
-      // Item Name
-      doc.setFont("Courier", "bold");
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text(item.name, 6, y);
-
-      // Subtotal on the same line
-      doc.text(formatRupiah(item.subtotal), 74, y, { align: "right" });
-      y += 4;
-
-      // Item Qty details (matching exact styling of green & gray)
-      doc.setFont("Courier", "normal");
-      doc.setFontSize(8);
-      if (transaction.usePenerimaan) {
-        const qtyTerima =
-          item.receivedQuantity !== undefined && item.receivedQuantity !== null
-            ? item.receivedQuantity
-            : item.quantity;
-
-        doc.setTextColor(15, 118, 110); // emerald-700
-        const greenPart = `Trm: ${qtyTerima} ${item.unit}`;
-        doc.text(greenPart, 8, y);
-        const greenWidth = doc.getTextWidth(greenPart);
-
-        doc.setTextColor(148, 163, 184); // slate-400
-        doc.text(` x ${formatRupiah(item.price)} (Krm: ${item.quantity})`, 8 + greenWidth, y);
-      } else {
-        doc.setTextColor(148, 163, 184); // slate-400
-        doc.text(
-          `${item.quantity} ${item.unit} x ${formatRupiah(item.price)}`,
-          8,
-          y
-        );
-      }
-      y += 4.5;
-    });
-
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(148, 163, 184);
-    doc.text("------------------------------------------", 40, y, { align: "center" });
-    y += 4.5;
-
-    // 6. TOTALS
-    // TOTAL BELANJA
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(9.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text("TOTAL BELANJA:", 6, y);
-    doc.text(formatRupiah(transaction.totalAmount), 74, y, { align: "right" });
-    y += 4.5;
-
-    // Metode Pembayaran
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text("Metode Pembayaran:", 6, y);
-
-    doc.setFont("Courier", "bold");
-    doc.setTextColor(15, 23, 42);
-    const payMethodName = transaction.paymentMethod === "debt"
-      ? "Utang"
-      : transaction.paymentMethod === "mix"
-        ? "Campuran (Mix)"
-        : transaction.paymentMethod.toUpperCase();
-    doc.text(payMethodName, 74, y, { align: "right" });
-    y += 4;
-
-    // Mix/Debt Details
-    if (transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) {
-      doc.setFont("Courier", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-
-      doc.text(" - Cash :", 8, y);
-      doc.setTextColor(15, 23, 42);
-      doc.text(formatRupiah(transaction.cashAmount || 0), 74, y, { align: "right" });
-      y += 4;
-
-      doc.setTextColor(100, 116, 139);
-      doc.text(" - Transfer:", 8, y);
-      doc.setTextColor(15, 23, 42);
-      doc.text(formatRupiah(transaction.transferAmount || 0), 74, y, { align: "right" });
-      y += 4;
-    }
-
-    // Jumlah Dibayar
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text("Jumlah Dibayar:", 6, y);
-
-    doc.setFont("Courier", "bold");
-    doc.setTextColor(15, 23, 42);
-    doc.text(formatRupiah(transaction.amountPaid), 74, y, { align: "right" });
-    y += 4.5;
-
-    // Utang Sebelumnya
-    if (previousDebt > 0) {
-      doc.setFont("Courier", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184);
-      doc.text("------------------------------------------", 40, y, { align: "center" });
-      y += 4;
-
-      doc.setFont("Courier", "bold");
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Utang Sebelumnya:", 6, y);
-      doc.text(formatRupiah(previousDebt), 74, y, { align: "right" });
-      y += 4;
-    }
-
-    // Total Utang
-    if (totalCustomerDebt > 0) {
-      doc.setFont("Courier", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184);
-      doc.text("------------------------------------------", 40, y, { align: "center" });
-      y += 4;
-
-      doc.setFont("Courier", "bold");
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Total Utang:", 6, y);
-      doc.text(formatRupiah(totalCustomerDebt), 74, y, { align: "right" });
-      y += 4;
-    }
-
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(148, 163, 184);
-    doc.text("------------------------------------------", 40, y, { align: "center" });
-    y += 5;
-
-    // 7. BANK ACCOUNTS
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(148, 163, 184);
-    doc.text("INFO REKENING PEMBAYARAN", 40, y, { align: "center" });
-    y += 3.5;
-
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text("(A/N Panji Paranantias Mulyono)", 40, y, { align: "center" });
-    y += 4;
-
-    // BCA
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
-    doc.text("BCA:", 10, y);
-    doc.setFont("Courier", "bold");
-    doc.setTextColor(15, 23, 42);
-    doc.text("7410888879", 70, y, { align: "right" });
-    y += 3.5;
-
-    // BRI
-    doc.setFont("Courier", "normal");
-    doc.setTextColor(71, 85, 105);
-    doc.text("BRI:", 10, y);
-    doc.setFont("Courier", "bold");
-    doc.setTextColor(15, 23, 42);
-    doc.text("007501001986565", 70, y, { align: "right" });
-    y += 3.5;
-
-    // MANDIRI
-    doc.setFont("Courier", "normal");
-    doc.setTextColor(71, 85, 105);
-    doc.text("MANDIRI:", 10, y);
-    doc.setFont("Courier", "bold");
-    doc.setTextColor(15, 23, 42);
-    doc.text("173008118881", 70, y, { align: "right" });
-    y += 4.5;
-
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(148, 163, 184);
-    doc.text("------------------------------------------", 40, y, { align: "center" });
-    y += 4.5;
-
-    // 8. FOOTER GREETING
-    doc.setFont("Courier", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text("Terima Kasih Atas Kunjungan Anda", 40, y, { align: "center" });
-    y += 3.5;
-
-    doc.text("Barang yang sudah dibeli tidak dapat ditukar/dikembalikan", 40, y, { align: "center" });
-    y += 4;
-
-    doc.setFont("Courier", "normal");
-    doc.setFontSize(6.5);
-    doc.text("Sistem Kasir v1.0 • CV DPJ Berkah Unggas", 40, y, { align: "center" });
-
-    doc.save(`Struk_${transaction.invoiceNumber}.pdf`);
->>>>>>> 89c0dd599a230f43c5bd2cb206122ef9773777a5
   };
 
   const isDuplicate = currentPrintCount >= 1;
@@ -1071,7 +772,7 @@ export default function ReceiptModal({
                         : transaction.paymentMethod}
                   </span>
                 </div>
-                {(transaction.paymentMethod === "mix" || (transaction.paymentMethod === "debt" && (transaction.cashAmount || transaction.transferAmount))) && (
+                {transaction.paymentMethod === "mix" && (
                   <>
                     <div className="flex justify-between text-slate-500 pl-4">
                       <span>- Cash :</span>
@@ -1251,9 +952,11 @@ export default function ReceiptModal({
               <button
                 id="download-receipt-jpg-btn"
                 onClick={handleDownloadJPG}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 hover:bg-red-50 text-red-700 font-bold text-xs py-2.5 px-3 shadow-sm transition-all duration-200 cursor-pointer"
+                disabled={isDownloadingJPG}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 hover:bg-red-50 text-red-700 font-bold text-xs py-2.5 px-3 shadow-sm transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <FileText className="w-3.5 h-3.5" /> Download JPG
+                <FileText className="w-3.5 h-3.5" />
+                {isDownloadingJPG ? "Memproses..." : "Download JPG"}
               </button>
 
               <button
