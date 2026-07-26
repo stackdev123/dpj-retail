@@ -581,14 +581,45 @@ export default function ReceiptModal({
               el.setAttribute("style", sanitizeOklch(styleAttr));
             }
           });
+
+          // Handle external stylesheets (Vite/production)
+          let combinedCss = "";
+          try {
+            for (let i = 0; i < document.styleSheets.length; i++) {
+              const sheet = document.styleSheets[i];
+              try {
+                const rules = sheet.cssRules || sheet.rules;
+                if (rules) {
+                  for (let j = 0; j < rules.length; j++) {
+                    combinedCss += rules[j].cssText + "\n";
+                  }
+                }
+              } catch (e) {
+                // Ignore CORS issues for external non-same-origin stylesheets
+              }
+            }
+          } catch (err) {
+            console.error("Error reading stylesheets", err);
+          }
+
+          if (combinedCss.includes("oklch")) {
+            const sanitizedCss = sanitizeOklch(combinedCss);
+            const newStyle = clonedDoc.createElement("style");
+            newStyle.textContent = sanitizedCss;
+            clonedDoc.head.appendChild(newStyle);
+
+            // Remove all <link rel="stylesheet"> so html2canvas doesn't fetch them and crash
+            const links = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+            links.forEach((link) => link.parentNode?.removeChild(link));
+          }
         },
       });
 
       // Tambahkan margin/padding 1mm di kiri, kanan, dan bawah (kebawah)
       const scale = 3;
       const mmInPx = (96 / 25.4) * scale;
-      const padLR = Math.ceil(1 * mmInPx);
-      const padBottom = Math.ceil(1 * mmInPx);
+      const padLR = Math.ceil(1.5 * mmInPx);
+      const padBottom = Math.ceil(1.5 * mmInPx);
 
       const finalCanvas = document.createElement("canvas");
       finalCanvas.width = imgCanvas.width + padLR * 2;
