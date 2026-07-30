@@ -116,6 +116,13 @@ export default function DebtLedger() {
   const [repayAmount, setRepayAmount] = useState<number | "">("");
   const [repayMethod, setRepayMethod] = useState<"cash" | "transfer">("cash");
   const [repayNotes, setRepayNotes] = useState("");
+  const [repayDate, setRepayDate] = useState(() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  });
 
   // Edit Payment Modal states
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
@@ -323,16 +330,27 @@ export default function DebtLedger() {
     }
 
     try {
+      let dateToSave = new Date().toISOString();
+      if (repayDate) {
+        const selectedDate = new Date(repayDate);
+        const now = new Date();
+        selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+        dateToSave = selectedDate.toISOString();
+      }
+
       await db.saveCustomerPayment(
         selectedCustomerId,
         Number(repayAmount),
         repayMethod,
-        repayNotes.trim() || "Pembayaran Setoran"
+        repayNotes.trim() || "Pembayaran Setoran",
+        dateToSave
       );
       await loadData();
       setIsPayModalOpen(false);
       setRepayAmount("");
       setRepayNotes("");
+      const d = new Date();
+      setRepayDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
       alert("Setoran berhasil dicatat!");
     } catch (err) {
       console.error(err);
@@ -1809,6 +1827,20 @@ export default function DebtLedger() {
               </div>
 
               <form onSubmit={handlePaySubmit} className="space-y-4">
+                {/* Repay Date */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Tanggal Setoran
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={repayDate}
+                    onChange={(e) => setRepayDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3 text-xs font-black text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
                 {/* Repay Amount */}
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">

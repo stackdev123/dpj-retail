@@ -402,6 +402,7 @@ export const db = {
     totalAmountPaid: number,
     paymentMethod: "cash" | "transfer",
     notes: string,
+    date?: string,
   ): Promise<void> {
     const { data: transactions } = await supabase
       .from("transactions")
@@ -423,6 +424,7 @@ export const db = {
         amount_paid: totalAmountPaid,
         payment_method: paymentMethod,
         notes: notes || "Pembayaran Setoran Umum (Tanpa Nota Terbuka)",
+        ...(date && { date }),
       });
     } else {
       for (const tx of unpaidTxs) {
@@ -443,6 +445,7 @@ export const db = {
           notes:
             notes ||
             `Setoran Pelanggan (Otomatis terbagi ke ${tx.invoice_number})`,
+          ...(date && { date }),
         });
 
         // Update transaction remaining_debt
@@ -466,6 +469,7 @@ export const db = {
           notes: notes
             ? `${notes} (Kelebihan Pembayaran)`
             : "Kelebihan Pembayaran Setoran",
+          ...(date && { date }),
         });
 
         await supabase
